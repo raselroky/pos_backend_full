@@ -14,7 +14,7 @@ django-redis==4.12.1
 celery>=3.3.1
 pyjwt==1.7.1
 dateutils==0.6.12
-requests==2.27.1
+requests==2.27.1 
 django-filter==21.1
 django-debug-toolbar==3.2.4
 reportlab==3.6.5

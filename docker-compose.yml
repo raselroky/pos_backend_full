@@ -1,0 +1,46 @@
+version: "3"
+
+services:
+  # db:
+  #   image: postgres:15
+  #   volumes:
+  #     - postgres_data:/var/lib/postgresql/data/
+  #   environment:
+  #     - POSTGRES_USER=bookinguser
+  #     - POSTGRES_PASSWORD=bookingmsdb
+  #     - POSTGRES_DB=bookingmsdb
+  #   ports:
+  #     - "5443:5432"
+  redis:
+    image: redis:5-alpine
+    ports:
+      - 6378:6379
+
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    depends_on:
+      - redis
+    volumes:
+      - ./:/app
+    command: bash -c "python manage.py runserver 0.0.0.0:8000"
+    ports:
+      - 8000:8000
+    env_file:
+      - .env
+
+  nginx:
+    image: nginx:mainline-alpine
+    restart: always
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx:/etc/nginx/conf.d
+      - ./static:/app/static
+    depends_on:
+      - "app"
+
+volumes:
+  static:

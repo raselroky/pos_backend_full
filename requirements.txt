@@ -1,0 +1,36 @@
+djangorestframework-api-key==3.0.0
+djangorestframework_simplejwt<=5.4.0
+packaging<=24.2
+pillow<=11.1.0
+django==3.1.4
+# psycopg2-binary==2.9.3
+djangorestframework==3.12.2
+drf-yasg==1.20.0
+django-cors-headers==3.6.0
+django-simple-history==2.12.0
+django-extensions==3.1.0
+django-cacheops==5.1
+django-redis==4.12.1
+celery>=3.3.1
+pyjwt==1.7.1
+dateutils==0.6.12
+requests==2.27.1
+django-filter==21.1
+django-debug-toolbar==3.2.4
+reportlab==3.6.5
+sendgrid==6.9.4
+# boto3==1.20.43
+xhtml2pdf==0.2.5
+firebase_admin==5.2.0
+gunicorn==21.2.0
+django-json-widget==1.1.1
+qrcode==7.4.2
+python-dotenv==1.0.1
+django-rest-swagger==2.2.0
+channels==3.0.4
+channels_redis==3.3.1
+djangorestframework-simplejwt
+whitenoise
+treepoem
+pandas
+openpyxl

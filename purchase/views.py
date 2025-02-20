@@ -20,9 +20,11 @@ from helpers.invoice import generate_invoice_no,generate_return_no
 from helper import MainPagination
 from django.db import transaction
 from stock.models import Stocks,StockHistory
-from products.models import Product,ProductUnit,AttributeVariation,ColorVariation,ProductVariantAttribute
+from products.models import Product,ProductUnit,AttributeVariation,ColorVariation,ProductVariantAttribute,ProductBarcodes
 from catalog.models import Brand,Category,SubCategory
 from rest_framework.exceptions import ValidationError
+from django.utils.timezone import now
+from helpers.barcode import generate_barcode_image
 
 
 
@@ -117,7 +119,9 @@ class PurchaseListCreateAPIView(ListCreateAPIView):
                 warranty = item.get('warranty', 0)
                 remark = item.get('remark', ""),
                 selling_price = item.get('selling_price', 0)
-
+                barcode = item.get('barcode', [])
+                if len(barcode) != good_quantity:
+                    return Response({"error": f"Number of barcodes ({len(barcode)}) must match the good quantity ({good_quantity})."}, status=status.HTTP_400_BAD_REQUEST)
                 
                 purchase_history = PurchaseHistory.objects.create(
                     purchase=purchase,
@@ -168,6 +172,18 @@ class PurchaseListCreateAPIView(ListCreateAPIView):
                     reference=purchase.id,
                     created_by=request.user
                 )
+                for barcode_value in barcode:
+                    barcode_image = generate_barcode_image(barcode_value)
+                    ProductBarcodes.objects.create(
+                        product_variant=product_variant,
+                        product_status="Purchased",
+                        barcode=barcode_value,
+                        barcode_image=barcode_image,
+                        purchased_at=now(),
+                        remarks="Barcode for purchase",
+                        created_by=request.user
+
+                    )
 
 
             headers = self.get_success_headers(purchase_serializer.data)
@@ -314,14 +330,20 @@ class PurchaseReturnListCreateAPIView(ListCreateAPIView):
                 return_qty = item.get('return_qty', 0)
                 refund_amount = item.get('refund_amount', 0)
                 remark = item.get('remark', "")
+                barcode = item.get('barcode', [])
 
-                # Retrieve the corresponding purchase history
+                if len(barcode) != return_qty:
+                    return Response(
+                        {"error": f"Number of barcodes ({len(barcode)}) must match return quantity ({return_qty})."},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+
+
                 try:
                     purchase_history = PurchaseHistory.objects.get(id=purchase_history_id)
                 except PurchaseHistory.DoesNotExist:
                     raise ValidationError(f"Purchase history with ID {purchase_history_id} does not exist.")
 
-                # Create purchase return history entry
                 purchase_return_history = PurchaseReturnHistory.objects.create(
                     purchase_return=purchase_return,
                     purchase_history=purchase_history,
@@ -334,30 +356,46 @@ class PurchaseReturnListCreateAPIView(ListCreateAPIView):
                 total_return_qty += return_qty
                 total_refund_amount += refund_amount
 
-                # Update stock quantities based on the return
                 try:
                     stock = Stocks.objects.get(product_variant=purchase_history.product_variant)
-                    # Update stock: Reduce available quantity by return_qty
                     stock.available_qty -= return_qty
 
-                    # If the returned quantity was previously sold, decrease sold_qty as well
                     stock.sold_qty -= return_qty
                     stock.save()
 
-                    # Create a stock history entry for the return
                     StockHistory.objects.create(
                         stock=stock,
-                        quantity=-return_qty,  # Negative quantity indicates return
-                        price=purchase_history.unit_price,  # Use unit price from purchase history
-                        log_type="Return",  # Log type indicating return operation
+                        quantity=-return_qty,  
+                        price=purchase_history.unit_price,
+                        log_type="Return",
                         reference=purchase_return.id,
-                        created_by=request.user  # Log the user who performed the operation
+                        created_by=request.user 
                     )
 
                 except Stocks.DoesNotExist:
                     raise ValidationError(f"Stock for product variant {purchase_history.product_variant.product.product_name} does not exist.")
 
-            # Update the purchase return model with the total return quantities and refund amounts
+                for barcode_value in barcode:
+                    try:
+                        barcode_entry = ProductBarcodes.objects.get(barcode=barcode_value)
+
+                        if barcode_entry.product_variant != purchase_history.product_variant:
+                            return Response(
+                                {"error": f"Barcode {barcode_value} does not belong to the specified product."},
+                                status=status.HTTP_400_BAD_REQUEST
+                            )
+
+                        barcode_entry.product_status = "Purchase Return"
+                        barcode_entry.purchase_return_at = now()
+                        barcode_entry.save()
+
+                    except ProductBarcodes.DoesNotExist:
+                        return Response(
+                            {"error": f"Barcode {barcode_value} does not exist in records."},
+                            status=status.HTTP_400_BAD_REQUEST
+                        )
+
+
             purchase_return.total_return_qty = total_return_qty
             purchase_return.total_refund_amount = total_refund_amount
             purchase_return.save()

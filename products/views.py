@@ -126,7 +126,7 @@ class ProductVariantAttributeListAPIView(ListAPIView):
     serializer_class=ProductVariantAttributeDetailsSerializer
     pagination_class=MainPagination
     filter_backends = [SearchFilter, OrderingFilter]
-    search_fields = ['id','product_name','sku','category__category_name','sub_category__subcategory_name','brand__brand_name','product_type','country']
+    search_fields = ['id','product__product_name','product__sku','product__country','product__brand__brand_name','product__category__category_name']
     
     def get_queryset(self):
         return ProductVariantAttribute.objects.all()

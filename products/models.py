@@ -67,7 +67,7 @@ class ProductVariantAttribute(CommonAction):
 class ProductBarcodes(CommonAction):  # one barcode/product can be one stage bkz each barcode means each product/item.
     product_status = (
         ('Sold', "Sold"), 
-        ('Purchased', "Purchased"), 
+        ('Purchased', "Purchased"),
         ('Sales Return', "Sales Return"), 
         ('Purchase Return', "Purchase Return"),  
         ('Damage', "Damage")

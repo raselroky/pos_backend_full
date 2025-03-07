@@ -62,7 +62,11 @@ class ProductVariantAttribute(CommonAction):
         verbose_name_plural = 'ProductVariantAttributes'
 
     def __str__(self):
-        return str(self.product.product_name)
+        product_name = self.product.product_name if self.product else "No Product"
+        color = str(self.color_attribute) if self.color_attribute else "No Color"
+        variation = str(self.variation_attribute) if self.variation_attribute else "No Variation"
+
+        return f"{product_name} ({color}, {variation})"
 
 class ProductBarcodes(CommonAction):  # one barcode/product can be one stage bkz each barcode means each product/item.
     product_status = (
@@ -72,6 +76,8 @@ class ProductBarcodes(CommonAction):  # one barcode/product can be one stage bkz
         ('Purchase Return', "Purchase Return"),  
         ('Damage', "Damage")
     )
+    inv=models.CharField(max_length=500,null=True,blank=True)
+    inv_sold=models.CharField(max_length=500,null=True,blank=True)
     product_variant     = models.ForeignKey(ProductVariantAttribute, on_delete=models.CASCADE, null=True, blank=True)
     product_status      = models.CharField(max_length=50, choices=product_status, default=None)
     expired_date        = models.DateField(null=True,blank=True)
@@ -90,4 +96,5 @@ class ProductBarcodes(CommonAction):  # one barcode/product can be one stage bkz
 
     
     def __str__(self):
-        return str(self.product_variant.product.product_name)
+        product_name = self.product_variant.product.product_name if self.product_variant and self.product_variant.product else "No Product"
+        return f"Barcode: {self.barcode} - {product_name}"

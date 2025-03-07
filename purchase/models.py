@@ -100,7 +100,7 @@ class PurchaseReturn(CommonAction):
         return '%s' % str(self.purchase.invoice_no)
      
 class PurchaseReturnHistory(CommonAction):
-    purchase_return = models.ForeignKey(PurchaseReturn, related_name='purchase_return_details', on_delete=models.CASCADE)
+    purchase_return = models.ForeignKey(PurchaseReturn, related_name="purchase_return_history", on_delete=models.CASCADE)
     purchase_history= models.ForeignKey(PurchaseHistory, related_name='purchase_return_details', on_delete=models.CASCADE)
     return_qty      = models.FloatField(default=0)  # Quantity returned 
     refund_amount   = models.FloatField(default=0)  # Refund amount for the returned product

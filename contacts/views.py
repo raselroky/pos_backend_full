@@ -60,16 +60,15 @@ class ContactRetrieveUpdateDestroyListAPIView(RetrieveUpdateDestroyAPIView):
     queryset=Contact.objects.all()
     serializer_class=ContactDetailsSerializer
     lookup_field='id'
-    #parser_classes = (MultiPartParser, FormParser)
 
     def get_queryset(self):
-        
         return Contact.objects.all()
     
     def destroy(self, request, *args, **kwargs):
         instance = self.get_object()
+    
         self.perform_destroy(instance)
-        return Response({"success": True, "message": "Item is deleted successfully."}, status=status.HTTP_204_NO_CONTENT)
+        return Response({"success": True, "message": "Deleted successfully"}, status=status.HTTP_200_OK)
 
 
 class ContactSupplierListAPIView(ListAPIView):

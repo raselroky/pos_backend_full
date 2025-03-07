@@ -34,8 +34,6 @@ from rest_framework.filters import SearchFilter, OrderingFilter
 from rest_framework.generics import ListAPIView,ListCreateAPIView,RetrieveUpdateDestroyAPIView
 
 
-################
-
 class LoginAPIView(TokenObtainPairView):
     serializer_class = MyTokenObtainPairSerializer
     
@@ -178,8 +176,9 @@ class RolesRetrieveUpdateDestroy(RetrieveUpdateDestroyAPIView):
 
     def destroy(self, request, *args, **kwargs):
         instance = self.get_object()
+    
         self.perform_destroy(instance)
-        return Response({"success": True, "message": "Item is deleted successfully."}, status=status.HTTP_204_NO_CONTENT)
+        return Response({"success": True, "message": "Deleted successfully"}, status=status.HTTP_200_OK)
     
 class PasswordResetViewSet(viewsets.ModelViewSet):
     serializer_class = PasswordResetSerializer
@@ -299,8 +298,9 @@ class RolePermissionsRetrieveUpdateDestroyView(RetrieveUpdateDestroyAPIView):
 
     def destroy(self, request, *args, **kwargs):
         instance = self.get_object()
+    
         self.perform_destroy(instance)
-        return Response({"success": True, "message": "Item is deleted successfully."}, status=status.HTTP_204_NO_CONTENT)
+        return Response({"success": True, "message": "Deleted successfully"}, status=status.HTTP_200_OK)
 
 
 
@@ -431,8 +431,9 @@ class UserGetRetrieve(RetrieveUpdateDestroyAPIView):
     
     def destroy(self, request, *args, **kwargs):
         instance = self.get_object()
+    
         self.perform_destroy(instance)
-        return Response({"success": True, "message": "Item is deleted successfully."}, status=status.HTTP_204_NO_CONTENT)
+        return Response({"success": True, "message": "Deleted successfully"}, status=status.HTTP_200_OK)
     
     
 class PasswordChange(APIView):

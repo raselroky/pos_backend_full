@@ -5,6 +5,7 @@ from catalog.models import *
 from purchase.models import Purchase,PurchaseReturn
 
 
+
 class ProductSerializer(serializers.ModelSerializer):
     sku=serializers.CharField(required=False)
     class Meta:
@@ -115,9 +116,34 @@ class ProductVariantAttributeSerializer(serializers.ModelSerializer):
 
 
 class ProductVariantAttributeDetailsSerializer(serializers.ModelSerializer):
+    
     product = ProductDetailsSerializer(read_only=True)
     color_attribute = ColorVariationSerializer(read_only=True)
     variation_attribute = AttributeVariationSerializer(read_only=True)
+    stocks=serializers.SerializerMethodField()
+
+    def get_stocks(self,obj):
+        from stock.models import Stocks
+        
+        st=Stocks.objects.filter(product_variant__id=obj.id)
+        if st.exists():
+            product=None
+            st_get=Stocks.objects.filter(product_variant=obj).first()
+            if st_get:
+               return {
+                "id":st_get.id,
+                "product_variant":product,
+                "purchase_price":st_get.purchase_price,
+                "selling_price":st_get.selling_price,
+                "total_qty":st_get.total_qty,
+                "sold_qty":st_get.sold_qty,
+                "hold_qty":st_get.hold_qty,
+                "available_qty":st_get.available_qty,
+                "transfering_qty":st_get.transfering_qty,
+                "discount_percentage":st_get.discount_percentage
+                }
+            return None
+        return None
     class Meta:
         model=ProductVariantAttribute
         fields='__all__'

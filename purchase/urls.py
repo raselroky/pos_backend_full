@@ -24,6 +24,9 @@ urlpatterns=[
     path('purchase-return-history-list/', PurchaseReturnHistoryListAPIView.as_view(), name='purchase-return-history-list-api'),
     path('purchase-return-history-retrieve-update-destroy/<int:id>', PurchaseReturnHistoryRetrieveUpdateDestroyListAPIView.as_view(), name='purchase-return-history-retrieve-update-destroy-api'),
     path('purchase-return-history-retrieve/<int:id>', PurchaseReturnHistoryRetrieveListAPIView.as_view(), name='purchase-return-history-retrieve-api'),
+
+
+    path('purchase-return-data-history/', PurchaseReturnHistoryList.as_view(), name='purchase-return-create-api'),
     
 
 ]

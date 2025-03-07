@@ -58,8 +58,9 @@ class ProductUnitRetrieveUpdateDestroy(RetrieveUpdateDestroyAPIView):
 
     def destroy(self, request, *args, **kwargs):
         instance = self.get_object()
+    
         self.perform_destroy(instance)
-        return Response({"success": True, "message": "Item is deleted successfully."}, status=status.HTTP_204_NO_CONTENT)
+        return Response({"success": True, "message": "Deleted successfully"}, status=status.HTTP_200_OK)
 
 
 class BrandListCreateAPIView(ListCreateAPIView):
@@ -102,8 +103,9 @@ class BrandRetrieveUpdateDestroy(RetrieveUpdateDestroyAPIView):
 
     def destroy(self, request, *args, **kwargs):
         instance = self.get_object()
+    
         self.perform_destroy(instance)
-        return Response({"success": True, "message": "Item is deleted successfully."}, status=status.HTTP_204_NO_CONTENT)
+        return Response({"success": True, "message": "Deleted successfully"}, status=status.HTTP_200_OK)
 
 
 class CategoryListCreateAPIView(ListCreateAPIView):
@@ -146,8 +148,9 @@ class CategoryRetrieveUpdateDestroy(RetrieveUpdateDestroyAPIView):
 
     def destroy(self, request, *args, **kwargs):
         instance = self.get_object()
+    
         self.perform_destroy(instance)
-        return Response({"success": True, "message": "Item is deleted successfully."}, status=status.HTTP_204_NO_CONTENT)
+        return Response({"success": True, "message": "Deleted successfully"}, status=status.HTTP_200_OK)
 
 
 
@@ -191,8 +194,9 @@ class SubCategoryRetrieveUpdateDestroy(RetrieveUpdateDestroyAPIView):
 
     def destroy(self, request, *args, **kwargs):
         instance = self.get_object()
+    
         self.perform_destroy(instance)
-        return Response({"success": True, "message": "Item is deleted successfully."}, status=status.HTTP_204_NO_CONTENT)
+        return Response({"success": True, "message": "Deleted successfully"}, status=status.HTTP_200_OK)
 
 
 
@@ -239,8 +243,9 @@ class ColorVariationRetrieveUpdateDestroy(RetrieveUpdateDestroyAPIView):
 
     def destroy(self, request, *args, **kwargs):
         instance = self.get_object()
+    
         self.perform_destroy(instance)
-        return Response({"success": True, "message": "Item is deleted successfully."}, status=status.HTTP_204_NO_CONTENT)
+        return Response({"success": True, "message": "Deleted successfully"}, status=status.HTTP_200_OK)
 
 
 
@@ -285,5 +290,6 @@ class AttributeVariationRetrieveUpdateDestroy(RetrieveUpdateDestroyAPIView):
 
     def destroy(self, request, *args, **kwargs):
         instance = self.get_object()
+    
         self.perform_destroy(instance)
-        return Response({"success": True, "message": "Item is deleted successfully."}, status=status.HTTP_204_NO_CONTENT)
+        return Response({"success": True, "message": "Deleted successfully"}, status=status.HTTP_200_OK)

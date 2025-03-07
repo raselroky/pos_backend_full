@@ -1,6 +1,18 @@
 
 from pathlib import Path
 import os
+from django.middleware.csrf import CsrfViewMiddleware
+
+class WebSocketMiddleware:
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+    def __call__(self, request):
+        # Skip CSRF for WebSocket requests
+        if request.path.startswith("/ws/"):
+            setattr(request, '_dont_enforce_csrf_checks', True)
+        return self.get_response(request)
+    
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 from dotenv import load_dotenv
@@ -29,6 +41,7 @@ INSTALLED_APPS = [
     'rest_framework_simplejwt.token_blacklist',
     'rest_framework_simplejwt',
     'rest_framework',
+    'channels',
     'corsheaders',
     'helpers',
     'branch',
@@ -38,6 +51,7 @@ INSTALLED_APPS = [
     'purchase',
     'sell',
     'stock',
+    'notifications',
 ]
 
 MIDDLEWARE = [
@@ -49,6 +63,7 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'pos_inventory_backend.settings.WebSocketMiddleware',
 ]
 
 ROOT_URLCONF = 'pos_inventory_backend.urls'
@@ -68,6 +83,10 @@ TEMPLATES = [
         },
     },
 ]
+
+
+ASGI_APPLICATION = 'pos_inventory_backend.asgi.application'
+
 
 WSGI_APPLICATION = 'pos_inventory_backend.wsgi.application'
 
@@ -107,11 +126,12 @@ AUTH_PASSWORD_VALIDATORS = [
 
 LANGUAGE_CODE = 'en-us'
 
-TIME_ZONE = 'UTC'
+TIME_ZONE = 'Asia/Dhaka'
 
 USE_I18N = True
 
-USE_TZ = True
+USE_TZ = True 
+
 
 
 STATIC_URL = '/static/'
@@ -209,4 +229,25 @@ SIMPLE_JWT = {
     'SLIDING_TOKEN_REFRESH_EXP_CLAIM': 'refresh_exp',
     'SLIDING_TOKEN_LIFETIME': timedelta(days=364),
     'SLIDING_TOKEN_REFRESH_LIFETIME': timedelta(days=1),
+}
+
+
+
+CACHES = {
+    'default': {
+        'BACKEND': 'django_redis.cache.RedisCache',
+        'LOCATION': 'redis://redis:6379',
+        'OPTIONS': {
+            'CLIENT_CLASS': 'django_redis.client.DefaultClient',
+        }
+    }
+}
+
+CHANNEL_LAYERS = {
+    'default': {
+        'BACKEND': 'channels_redis.core.RedisChannelLayer',
+        'CONFIG': {
+            "hosts": [('redis', 6379)],
+        },
+    },
 }

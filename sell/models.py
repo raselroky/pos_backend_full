@@ -32,7 +32,7 @@ class Sale(CommonAction):
     total_amount        = models.FloatField(default=0)
     discount_amount     = models.FloatField(default=0) 
     discount_percent    = models.FloatField(default=0) 
-    vat_amount          = models.FloatField(default=0) #it will store all products vat sum amount from PurchaseHistory
+    vat_amount          = models.FloatField(default=0)
     sub_total           = models.FloatField(default=0) 
     paid_amount         = models.FloatField(default=0)
     due_amount          = models.FloatField(default=0)

@@ -21,6 +21,7 @@ from django.utils.timezone import now
 from helpers.barcode import generate_barcode_image
 from products.models import ProductBarcodes
 from django.db.models import Sum
+from contacts.models import Contact
 
 from channels.layers import get_channel_layer
 from asgiref.sync import async_to_sync
@@ -38,7 +39,13 @@ class SaleListCreateAPIView(ListCreateAPIView):
         data['invoice_no'] = inv_sold
 
         with transaction.atomic():
-
+            customer_id = data.get("customer")  # Get customer ID from request
+            customer = None
+            if customer_id:
+                try:
+                    customer = Contact.objects.get(id=customer_id)
+                except Contact.DoesNotExist:
+                    return Response({"error": f"Customer with ID {customer_id} does not exist."}, status=status.HTTP_400_BAD_REQUEST)
             sale_history_data = data.get('sale_history', [])
             total_sale_amount = 0
             total_discount_amount = 0
@@ -90,7 +97,7 @@ class SaleListCreateAPIView(ListCreateAPIView):
                         )
                 sale_serializer = self.get_serializer(data=data)
                 sale_serializer.is_valid(raise_exception=True)
-                sale = sale_serializer.save(created_by=request.user)
+                sale = sale_serializer.save(created_by=request.user,customer=customer)
                 sale_history = SaleHistory.objects.create(
                     sale=sale,
                     product_variant=stock,

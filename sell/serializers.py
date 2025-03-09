@@ -5,8 +5,10 @@ from products.serializers import ProductVariantAttributeDetailsSerializer,Produc
 from stock.models import Stocks
 from stock.serializers import StocksDetailsSerializer
 from contacts.serializers import ContactDetailsSerializer
+from contacts.models import Contact
 
 class SaleSerializer(serializers.ModelSerializer):
+    customer = serializers.PrimaryKeyRelatedField(queryset=Contact.objects.all())
     class Meta:
         model=Sale
         fields='__all__'

@@ -68,13 +68,13 @@ class StockHistory(CommonAction):
 
 
 
-
 class StockAdjustment(CommonAction):
     stock = models.ForeignKey(Stocks, related_name='stock_adjustments', on_delete=models.CASCADE,null=True,blank=True)
     quantity = models.FloatField(default=0)
     reason = models.CharField(max_length=300, blank=True, null=True)
     accept_branch=models.ForeignKey(Branch,related_name='accept_branchs',on_delete=models.CASCADE,null=True,blank=True)
     given_branch=models.ForeignKey(Branch,on_delete=models.CASCADE,null=True,blank=True)
+    is_accept=models.BooleanField(default=False)
     class Meta:
         db_table = 'stock_adjustment'
         verbose_name = "Stock Adjustment"
@@ -89,6 +89,7 @@ class StockTransfer(CommonAction):
     reason = models.CharField(max_length=300, blank=True, null=True)
     accept_branch=models.ForeignKey(Branch,related_name='accept_branch',on_delete=models.CASCADE,null=True,blank=True)
     given_branch=models.ForeignKey(Branch,on_delete=models.CASCADE,null=True,blank=True)
+    is_accept=models.BooleanField(default=False)
     class Meta:
         db_table = 'stock_tarnsfer'
         verbose_name = "Stock Transfer"

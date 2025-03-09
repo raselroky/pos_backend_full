@@ -8,16 +8,23 @@ class StocksSerializer(serializers.ModelSerializer):
         model=Stocks
         fields='__all__'
 
-class StocksDetailsSerializer(serializers.ModelSerializer):
-    product_variant=ProductVariantAttributeDetailsSerializer(read_only=True)
-    class Meta:
-        model=Stocks
-        fields='__all__'
 
 
 class StocksHistorySerializer(serializers.ModelSerializer):
     class Meta:
         model=StockHistory
+        fields='__all__'
+
+class StocksDetailsSerializer(serializers.ModelSerializer):
+    product_variant=ProductVariantAttributeDetailsSerializer(read_only=True)
+    stock_history=serializers.SerializerMethodField()
+    def get_stock_history(self,obj):
+        #print(obj.product_variant)
+        history=StockHistory.objects.filter(stock__product_variant=obj.product_variant)
+        #print(history)
+        return StocksHistorySerializer(history,many=True).data
+    class Meta:
+        model=Stocks
         fields='__all__'
 
 class StockAdjustmentSerializer(serializers.ModelSerializer):

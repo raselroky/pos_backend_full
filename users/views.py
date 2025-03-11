@@ -418,7 +418,6 @@ class RolePermissionsSearchCheckAPIView(APIView):
         
         
 
-        
 class UserGetRetrieve(RetrieveUpdateDestroyAPIView):
     permission_classes=(IsAuthenticated,)
     queryset=Users.objects.all()

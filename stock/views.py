@@ -22,10 +22,12 @@ from django.db import transaction
 from products.models import Product,ProductVariantAttribute,ProductBarcodes
 from products.serializers import ProductSerializer,ProductVariantAttributeSerializer,ProductBarcodesSerializer
 from catalog.models import Brand,Category,SubCategory,ColorVariation,AttributeVariation,ProductUnit
+from catalog.serializers import BrandSerializer,CategorySerializer,SubCategorySerializer,ProductUnitSerializer,ColorVariationSerializer,AttributeVariationSerializer
 from rest_framework.exceptions import ValidationError
 import pandas as pd
 from rest_framework.parsers import MultiPartParser
 from datetime import datetime
+from helpers.identifier_builders import identifier_builder
 
 
 
@@ -305,77 +307,154 @@ class ImportExcelStockAPIView(APIView):
     parser_classes = [MultiPartParser]
 
     def post(self, request, *args, **kwargs):
-        file = request.FILES.get('file')
+        file = request.FILES.get("file")
         if not file:
             return Response({"error": "No file uploaded"}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
-           
-            df = pd.read_excel(file, engine='openpyxl')
-
-            
-            required_columns = [
-                "product_variant", "total_qty", "sold_qty", "hold_qty", 
-                "available_qty", "transfering_qty", "warranty", 
-                "purchase_price", "selling_price", "discount_percentage", "remark"
-            ]
-            for col in required_columns:
-                if col not in df.columns:
-                    return Response({"error": f"Missing column: {col}"}, status=status.HTTP_400_BAD_REQUEST)
+            df = pd.read_excel(file, engine="openpyxl")
+            df.fillna(None, inplace=True) 
 
             with transaction.atomic():
+                stock_history_entries = []
+
                 for _, row in df.iterrows():
-                    product_variant_id = row.get("product_variant")
-                    total_qty = row.get("total_qty", 0)
-                    sold_qty = row.get("sold_qty", 0)
-                    hold_qty = row.get("hold_qty", 0)
-                    available_qty = row.get("available_qty", 0)
-                    transfering_qty = row.get("transfering_qty", 0)
-                    warranty = row.get("warranty", 0)
-                    purchase_price = row.get("purchase_price", 0)
-                    selling_price = row.get("selling_price", 0)
-                    discount_percentage = row.get("discount_percentage", 0)
-                    remark = row.get("remark", "")
+                    product_name = row.get("product_name") 
+                    sku = row.get("sku", identifier_builder("products"))
+                    weight = row.get("weight", 0) 
+                    product_type = row.get("product_type", "Single")  
+                    country = row.get("country", None) 
+                    vat_percentage = row.get("vat_percentage", 0.0) 
+                    description = row.get("description", None) 
 
-                    try:
-                        product_variant = ProductVariantAttribute.objects.get(id=product_variant_id)
-                    except ProductVariantAttribute.DoesNotExist:
-                        return Response({"error": f"Product Variant ID {product_variant_id} not found."}, status=status.HTTP_400_BAD_REQUEST)
+                    unit_name = row.get("unit_name")  
+                    unit_short_name = row.get("unit_short_name",None)  
+                    unit, _ = ProductUnit.objects.get_or_create(
+                        unit_name=unit_name,
+                        defaults={"unit_short_name": unit_short_name, "created_by": request.user}
+                    ) if unit_name else (None, None)
 
-                    
-                    stock, created = Stocks.objects.get_or_create(
-                        product_variant=product_variant,
+                    brand_name = row.get("brand_name")
+                    brand_description = row.get("brand_description",None) 
+                    brand_image = row.get("brand_image", None) 
+                    brand, _ = Brand.objects.get_or_create(
+                        brand_name=brand_name,
                         defaults={
-                            "total_qty": total_qty,
-                            "sold_qty": sold_qty,
-                            "hold_qty": hold_qty,
-                            "available_qty": available_qty,
-                            "transfering_qty": transfering_qty,
-                            "warranty": warranty,
-                            "purchase_price": purchase_price,
-                            "selling_price": selling_price,
-                            "discount_percentage": discount_percentage,
-                            "remark": remark
+                            "description": brand_description, 
+                            "image": brand_image,
+                              "created_by": request.user}
+                    ) if brand_name else (None, None)
+
+                    category_name = row.get("category_name")  
+                    category_code = row.get("category_code", None)  
+                    category_description = row.get("category_description",None)  
+                    category_image = row.get("category_image", None)  
+                    category, _ = Category.objects.get_or_create(
+                        category_name=category_name,
+                        defaults={
+                            "category_code": category_code,
+                            "description": category_description,
+                            "image": category_image, 
+                            "created_by": request.user}
+                    ) if category_name else (None, None)
+
+                    subcategory_name = row.get("subcategory_name",None) 
+                    subcategory_code = row.get("subcategory_code", None)  
+                    subcategory_description = row.get("subcategory_description",None)  
+                    subcategory_image = row.get("subcategory_image", None)  
+                    sub_category, _ = SubCategory.objects.get_or_create(
+                        subcategory_name=subcategory_name,
+                        defaults={
+                            "category": category,
+                            "subcategory_code": subcategory_code,
+                            "description": subcategory_description,
+                            "image": subcategory_image,
+                            "created_by": request.user
                         }
+                    ) if subcategory_name else (None, None)
+
+                    product_data = {
+                        "product_name": product_name,
+                        "sku": sku,
+                        "unit": unit,
+                        "category": category,
+                        "sub_category": sub_category,
+                        "brand": brand,
+                        "weight": weight,
+                        "product_type": product_type,
+                        "country": country,
+                        "vat_percentage": vat_percentage,
+                        "description": description,
+                    }
+
+                    serializer = ProductSerializer(data=product_data)
+                    if serializer.is_valid():
+                        product = serializer.save(created_by=request.user)
+                    else:
+                        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+                    
+                    color_attribute_id = row.get("color_attribute", None)
+                    color_attribute = None
+                    if color_attribute_id:
+                        color_attribute = ColorVariation.objects.filter(id=color_attribute_id).first()
+                        if not color_attribute:
+                            color_attribute_name = row.get("color_name", None)
+                            color_attribute_description=row.get("description",None)
+                            color_attribute = ColorVariation.objects.create(
+                                color_name=color_attribute_name,
+                                description=color_attribute_description,
+                                created_by=request.user
+                            )
+
+                    variation_attribute_id = row.get("variation_attribute", None)
+                    variation_attribute = None
+                    if variation_attribute_id:
+                        variation_attribute = AttributeVariation.objects.filter(id=variation_attribute_id).first()
+                        if not variation_attribute:
+                            variation_attribute_name = row.get("name", None)
+                            variation_attribute_values=row.get("values",None)
+                            variation_attribute = AttributeVariation.objects.create(
+                                name=variation_attribute_name,
+                                values=variation_attribute_values,
+                                created_by=request.user
+                            )
+
+                    product_variant, _ = ProductVariantAttribute.objects.get_or_create(
+                        product=product,
+                        color_attribute=color_attribute,
+                        variation_attribute=variation_attribute,
+                        defaults={"created_by": request.user}
                     )
 
-                    if not created: 
-                        stock.total_qty += total_qty
-                        stock.available_qty += available_qty
-                        stock.sold_qty += sold_qty
-                        stock.hold_qty += hold_qty
-                        stock.transfering_qty += transfering_qty
-                        stock.purchase_price = purchase_price
-                        stock.selling_price = selling_price
-                        stock.warranty = warranty
-                        stock.discount_percentage = discount_percentage
-                        stock.remark = remark
+                    stock_data = {
+                        "total_qty": row.get("total_qty", 0), 
+                        "sold_qty": row.get("sold_qty", 0),
+                        "hold_qty": row.get("hold_qty", 0), 
+                        "available_qty": row.get("available_qty", 0),  
+                        "transfering_qty": row.get("transfering_qty", 0),  
+                        "warranty": row.get("warranty", 0),
+                        "purchase_price": row.get("purchase_price", 0.0),
+                        "selling_price": row.get("selling_price", 0.0), 
+                        "discount_percentage": row.get("discount_percentage", 0.0), 
+                        "remark": row.get("remark", None),  
+                    }
+
+                    stock, created_stock = Stocks.objects.get_or_create(
+                        product_variant=product_variant,
+                        defaults=stock_data
+                    )
+
+                    if not created_stock:
+                        for field, value in stock_data.items():
+                            if field != "product_variant":
+                                existing_value = getattr(stock, field)
+                                setattr(stock, field, existing_value + value if isinstance(value, (int, float)) else value)
                         stock.save()
 
                     StockHistory.objects.create(
                         stock=stock,
-                        quantity=total_qty,
-                        price=purchase_price,
+                        quantity=stock_data["total_qty"],
+                        price=stock_data["purchase_price"],
                         log_type="Import",
                         reference=None
                     )

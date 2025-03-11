@@ -14,5 +14,6 @@ urlpatterns=[
     path('stock-transfer-list/',StockTransfertListAPIView.as_view(), name='stock-transfer-list-api'),
     path('stock-transfer-retrieve-update-destroy/<int:id>',StockTransferRetrieveUpdateDestroyListAPIView.as_view(), name='stock-transfer-retrieve-update-destroy-api'),
 
+    path('importexcel-stock/', ImportExcelStockAPIView.as_view(), name='importexcel-stock-api'),
 
 ]

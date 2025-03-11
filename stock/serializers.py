@@ -33,7 +33,7 @@ class StockAdjustmentSerializer(serializers.ModelSerializer):
         fields='__all__'
 
 class StockAdjustmentDetailsSerializer(serializers.ModelSerializer):
-    stock=StocksDetailsSerializer(many=True,read_only=True)
+    stock=StocksDetailsSerializer(read_only=True)
     class Meta:
         model=StockAdjustment
         fields='__all__'
@@ -44,7 +44,7 @@ class StockTransferSerializer(serializers.ModelSerializer):
         fields='__all__'
 
 class StockTransferDetailsSerializer(serializers.ModelSerializer):
-    stock=StocksDetailsSerializer(many=True,read_only=True)
+    stock=StocksDetailsSerializer(read_only=True)
     class Meta:
         model=StockTransfer
         fields='__all__'

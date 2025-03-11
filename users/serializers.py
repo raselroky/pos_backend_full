@@ -9,25 +9,13 @@ from django.db.models import Q
 class UsersSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True,required=False)
     role = serializers.PrimaryKeyRelatedField(queryset=Roles.objects.all(), many=True, required=False, allow_null=True)
-    permissions = serializers.SerializerMethodField()
     email=serializers.CharField(required=False)
+
     class Meta:
         model = Users
-        fields = ('id', 'email', 'first_name', 'last_name', 'photo', 'is_superadmin', 'is_active', 'age', 'password', 'permissions', 'role')
+        fields = ('id', 'email', 'first_name', 'last_name', 'photo', 'is_superadmin', 'is_active', 'age', 'password', 'role','branch')
 
-    def get_permissions(self, obj):
-        data = []
-        if hasattr(obj, 'account_user_permissions'):
-            for account_permission in obj.account_user_permissions.all():
-                permission = account_permission.permission
-                item = {
-                    'id': permission.id,
-                    'title': permission.title,
-                    'module': permission.module,
-                    'sub_module': permission.sub_module
-                }
-                data.append(item)
-        return data
+    
 
 class UsersUpdateSerializer(serializers.ModelSerializer):
     class Meta:

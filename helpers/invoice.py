@@ -1,9 +1,13 @@
 import uuid
 import random
 from django.db import models
+import string
+from sell.models import Sale
+from purchase.models import Purchase
 
 def generate_invoice_no():
     prefix = "INV"
+    
     random_number = random.randint(1000, 9999)
     random_last=random.randint(100,999)
     random_font=random.randint(10,99)
@@ -17,6 +21,7 @@ def generate_invoice_no():
 
 def generate_return_no():
     prefix = "RET"
+    
     random_number = random.randint(1000, 9999)
     random_last=random.randint(100,999)
     random_font=random.randint(10,99)

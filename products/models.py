@@ -24,7 +24,7 @@ STOCK_TYPE=(
 )
 
 class Product(CommonAction):
-    product_name        = models.CharField(max_length=100,null=True,blank=True)
+    product_name        = models.CharField(max_length=500,null=True,blank=True)
     sku                 = models.CharField(max_length=50,unique=True)
     unit                = models.ForeignKey(ProductUnit,on_delete=models.CASCADE,null=True,blank=True)
     category            = models.ForeignKey(Category,on_delete=models.CASCADE,null=True,blank=True)
@@ -45,7 +45,6 @@ class Product(CommonAction):
             models.Index(fields=['-created_at']),
         ]
     
-
     def __str__(self):
         return str(self.product_name)
 
@@ -74,10 +73,12 @@ class ProductBarcodes(CommonAction):  # one barcode/product can be one stage bkz
         ('Purchased', "Purchased"),
         ('Sales Return', "Sales Return"), 
         ('Purchase Return', "Purchase Return"),  
-        ('Damage', "Damage")
+        ('Damage', "Damage"),
+        ('Quotation','Quotation')
     )
     inv=models.CharField(max_length=500,null=True,blank=True)
     inv_sold=models.CharField(max_length=500,null=True,blank=True)
+    inv_quotation=models.CharField(max_length=500,null=True,blank=True)
     product_variant     = models.ForeignKey(ProductVariantAttribute, on_delete=models.CASCADE, null=True, blank=True)
     product_status      = models.CharField(max_length=50, choices=product_status, default=None)
     expired_date        = models.DateField(null=True,blank=True)
@@ -87,7 +88,8 @@ class ProductBarcodes(CommonAction):  # one barcode/product can be one stage bkz
     purchased_at        = models.DateTimeField(auto_now_add=False, blank=True, null=True)
     sales_return_at     = models.DateTimeField(auto_now_add=False, blank=True, null=True)
     purchase_return_at  = models.DateTimeField(auto_now_add=False, blank=True, null=True)
-    remarks             = models.TextField(null=True, blank=True, default='')
+    quotation_at        = models.DateTimeField(auto_now_add=False, blank=True, null=True)
+    remarks             = models.TextField(null=True, blank=True)
 
     class Meta:
         db_table            = 'product_barcodes'

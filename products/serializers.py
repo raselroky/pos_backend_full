@@ -18,6 +18,30 @@ class ProductDetailsSerializer(serializers.ModelSerializer):
     sub_category=serializers.SerializerMethodField()
     brand=serializers.SerializerMethodField()
     unit =serializers.SerializerMethodField()
+    color_attribute=serializers.SerializerMethodField()
+    variation_attribute=serializers.SerializerMethodField()
+
+    def get_color_attribute(self,obj):
+        #print(obj)
+        product_variant = ProductVariantAttribute.objects.filter(product=obj).first()
+        #print(product_variant)
+        if product_variant and product_variant.color_attribute:
+            
+            return {
+                "id":product_variant.color_attribute.id,
+                "color_name":product_variant.color_attribute.color_name,
+            }
+        return None
+    def get_variation_attribute(self,obj):
+        product_variant = ProductVariantAttribute.objects.filter(product=obj).first()
+        if product_variant and product_variant.variation_attribute:
+            
+            return {
+                "id":product_variant.variation_attribute.id,
+                "name":product_variant.variation_attribute.name,
+                "values":product_variant.variation_attribute.values
+            }
+        return None
     #stock_quantity=serializers.SerializerMethodField()
 
     # def get_stock_quantity(self,obj):

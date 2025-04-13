@@ -11,8 +11,9 @@ PURCHASE_STATUS=(
     ('Pending','Pending'),
     ('Ordered','Ordered')
 )
+
 PAYMENT_METHOD=(
-    ('None','None'),
+    ('Select Payment Method','Select Payment Method'),
     ('Cash','Cash'),
     ('Check','Check'),
     ('Bank-Card','Bank-Card'),
@@ -21,9 +22,9 @@ PAYMENT_METHOD=(
     ('Upay','Upay')
 )
 DISCOUNT_TYPE=(
-    ('Please Select','Please Select'),
+    ('Select Type','Select Type'),
     ('Percentage','Percentage'),
-    ('Fixed','Fixed')
+    ('Flat','Flat')
 )
 
 
@@ -32,6 +33,8 @@ class Purchase(CommonAction):
     total_amount        = models.FloatField(default=0)
     discount_amount     = models.FloatField(default=0) 
     discount_percent    = models.FloatField(default=0) 
+    discount_type       = models.CharField(max_length=100,choices=DISCOUNT_TYPE,default='Select Type')
+    payment_method      = models.CharField(max_length=100,choices=PAYMENT_METHOD,default='Select Payment Method')
     vat_amount          = models.FloatField(default=0)
     sub_total           = models.FloatField(default=0) 
     grand_total         = models.FloatField(default=0) 
@@ -63,6 +66,7 @@ class PurchaseHistory(CommonAction):
     unit_price      = models.FloatField(default=0)
     discount_amount = models.FloatField(default=0) 
     discount_percent= models.FloatField(default=0) 
+    discount_type   = models.CharField(max_length=100,choices=DISCOUNT_TYPE,default='Select Type') 
     warranty        = models.PositiveIntegerField(default=0)
     remark          = models.CharField(max_length=300, null=True, blank=True)
 
@@ -78,13 +82,12 @@ class PurchaseHistory(CommonAction):
     def __str__(self):
         return '%s' % str(self.purchase)+" -> "+str(self.product_variant)
 
-from django.db.models.aggregates import Sum
 class PurchaseReturn(CommonAction):
     purchase            = models.ForeignKey(Purchase, related_name='purchase_returns', on_delete=models.CASCADE)
     return_no           = models.CharField(max_length=30, unique=True)
     return_date         = models.DateField(auto_now_add=False,blank=True,null=True)
-    total_return_qty    = models.FloatField(default=0)  # Total quantity returned 
-    total_refund_amount = models.FloatField(default=0)  # Amount refunded to the supplier
+    total_return_qty    = models.FloatField(default=0)
+    total_refund_amount = models.FloatField(default=0)  
     remark              = models.CharField(max_length=300, null=True, blank=True)
 
     class Meta:

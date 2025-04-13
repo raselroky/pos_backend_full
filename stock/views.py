@@ -18,6 +18,7 @@ from .models import Stocks,StockHistory,StockAdjustment,StockTransfer
 from rest_framework.filters import SearchFilter, OrderingFilter
 from helpers.invoice import generate_invoice_no
 from helper import MainPagination
+from helpers.searching import CustomSearchFilter,FlexibleSearchFilter
 from django.db import transaction
 from products.models import Product,ProductVariantAttribute,ProductBarcodes
 from products.serializers import ProductSerializer,ProductVariantAttributeSerializer,ProductBarcodesSerializer
@@ -39,7 +40,7 @@ class StockListCreateAPIView(ListCreateAPIView):
     def create(self, request, *args, **kwargs):
         data = request.data.copy()  
         data['created_by'] = request.user.id 
-
+        data['branch'] = request.user.branch.id if request.user.branch else None
         
         product_variant_id = data.get('product_variant')
         purchase_quantity = float(data.get('total_qty', 0)) 
@@ -97,8 +98,8 @@ class StockListAPIView(ListAPIView):
     permission_classes=[IsAuthenticated,]
     queryset=Stocks.objects.all()
     serializer_class=StocksDetailsSerializer
-    filter_backends = [SearchFilter, OrderingFilter]
-    search_fields = ['id']
+    filter_backends = [OrderingFilter,SearchFilter]
+    search_fields = ['id','product_variant__product__product_name','product_variant__product__sku','product_variant__product__category__category_name','product_variant__product__brand__brand_name']
     pagination_class=MainPagination
 
     def get_queryset(self):
@@ -147,7 +148,7 @@ class StockAdjustmentListCreateAPIView(ListCreateAPIView):
     def create(self, request, *args, **kwargs):
         data = request.data.copy()
         data['created_by'] = request.user.id  
-
+        data['branch'] = request.user.branch.id if request.user.branch else None
         stock_id = data.get('stock')
         quantity = float(data.get('quantity', 0))
         reason = data.get('reason', '')
@@ -192,7 +193,7 @@ class StockAdjustmentListAPIView(ListAPIView):
     queryset=StockAdjustment.objects.all()
     serializer_class=StockAdjustmentDetailsSerializer
     filter_backends = [SearchFilter, OrderingFilter]
-    search_fields = ['id']
+    search_fields = ['id','reason','stock__product_variant__product__product_name','stock__product_variant__product__sku']
     pagination_class=MainPagination
 
     def get_queryset(self):
@@ -225,7 +226,7 @@ class StockTransferListCreateAPIView(ListCreateAPIView):
     def create(self, request, *args, **kwargs):
         data = request.data.copy()
         data['created_by'] = request.user.id  
-
+        data['branch'] = request.user.branch.id if request.user.branch else None
         stock_id = data.get('stock')
         quantity = float(data.get('quantity', 0))
         reason = data.get('reason', '')
@@ -273,7 +274,7 @@ class StockTransfertListAPIView(ListAPIView):
     queryset=StockTransfer.objects.all()
     serializer_class=StockTransferDetailsSerializer
     filter_backends = [SearchFilter, OrderingFilter]
-    search_fields = ['id']
+    search_fields = ['id','reason','stock__product_variant__product__product_name','stock__product_variant__product__sku']
     pagination_class=MainPagination
 
     def get_queryset(self):
@@ -393,31 +394,23 @@ class ImportExcelStockAPIView(APIView):
                     else:
                         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
                     
-                    color_attribute_id = row.get("color_attribute", None)
+                    
+                    color_name = row.get("color_name",None)
                     color_attribute = None
-                    if color_attribute_id:
-                        color_attribute = ColorVariation.objects.filter(id=color_attribute_id).first()
-                        if not color_attribute:
-                            color_attribute_name = row.get("color_name", None)
-                            color_attribute_description=row.get("description",None)
-                            color_attribute = ColorVariation.objects.create(
-                                color_name=color_attribute_name,
-                                description=color_attribute_description,
-                                created_by=request.user
-                            )
+                    if color_name:
+                        color_attribute, _ = ColorVariation.objects.get_or_create(
+                        color_name=color_name,
+                        defaults={"created_by": request.user}
+                        )
 
-                    variation_attribute_id = row.get("variation_attribute", None)
+                    variation_name = row.get("name",None)  # Assuming 'name' is the attribute name
+                    variation_values = row.get("values",None)  # Assuming 'values' contains variation values
                     variation_attribute = None
-                    if variation_attribute_id:
-                        variation_attribute = AttributeVariation.objects.filter(id=variation_attribute_id).first()
-                        if not variation_attribute:
-                            variation_attribute_name = row.get("name", None)
-                            variation_attribute_values=row.get("values",None)
-                            variation_attribute = AttributeVariation.objects.create(
-                                name=variation_attribute_name,
-                                values=variation_attribute_values,
-                                created_by=request.user
-                            )
+                    if variation_name:
+                        variation_attribute, _ = AttributeVariation.objects.get_or_create(
+                        name=variation_name,
+                        defaults={"values": variation_values, "created_by": request.user}
+                        )
 
                     product_variant, _ = ProductVariantAttribute.objects.get_or_create(
                         product=product,

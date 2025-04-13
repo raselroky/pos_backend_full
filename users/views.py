@@ -32,6 +32,8 @@ from rest_framework.permissions import AllowAny,IsAuthenticated
 from django.contrib.auth.models import Permission
 from rest_framework.filters import SearchFilter, OrderingFilter
 from rest_framework.generics import ListAPIView,ListCreateAPIView,RetrieveUpdateDestroyAPIView
+from branch.models import Branch
+from django.http import QueryDict
 
 
 class LoginAPIView(TokenObtainPairView):
@@ -41,26 +43,20 @@ class LogoutView(APIView):
   permission_classes = [IsLogin]
 
   def post(self, request):
-      # try:
-          # Get both tokens from request
+      
           refresh_token = request.data.get("refresh_token")
           access_token = request.META.get('HTTP_AUTHORIZATION', '').split(' ')[1]
 
           if refresh_token:
             try:
-              # Blacklist the refresh token
               token = RefreshToken(refresh_token)
               token.blacklist()
             except Exception as e:print("Refresh Token Blacklist: ",e)
           if access_token:  
-            # Blacklist the access token
-            # Note: We need to create an Outstanding token first
             access_token_obj = AccessToken(access_token)
             
-            # Convert timestamp to a naive datetime object
             naive_datetime = datetime.fromtimestamp(access_token_obj['exp'])
 
-            # Make the datetime timezone-aware
             expires_at = make_aware(naive_datetime)
             print('access_token_obj exp',type(access_token_obj['exp']),access_token_obj['exp'])
               
@@ -73,7 +69,6 @@ class LogoutView(APIView):
             outstanding_token = OutstandingToken.objects.get(jti=access_token_obj['jti'])
             BlacklistedToken.objects.create(token=outstanding_token)
 
-            # Optional: Blacklist all tokens for this user
             tokens = OutstandingToken.objects.filter(user_id=request.user.id)
             for token in tokens:
               print('tokens',token)
@@ -102,17 +97,49 @@ class TokenRefreshAPIView(TokenRefreshView):
 
 class UsersViewSet(viewsets.ModelViewSet):
     serializer_class = UsersSerializer
-    permission_classes = [IsLogin]
+    permission_classes = [AllowAny]
     pagination_class = MainPagination
     queryset = Users.objects.all()
 
+
     def create(self, request, *args, **kwargs):
-      email = request.data.get('email')
-      if not email:
-          return Response({"error": "Email is required!"}, status=status.HTTP_400_BAD_REQUEST)
-      if Users.objects.filter(email=email).exists():
-          return Response({"error": "A user with this email already exists!"}, status=status.HTTP_400_BAD_REQUEST)
-      return super().create(request, *args, **kwargs)
+        email = request.data.get("email")
+        if not email:
+            return Response({"error": "Email is required!"}, status=status.HTTP_400_BAD_REQUEST)
+        if Users.objects.filter(email=email).exists():
+            return Response({"error": "A user with this email already exists!"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        mutable_data = request.data.copy() if isinstance(request.data, QueryDict) else request.data
+
+        role_ids = request.data.getlist("role") if isinstance(request.data, QueryDict) else request.data.get("role", [])
+        role_ids = [int(role_id) for role_id in role_ids if str(role_id).isdigit()]
+
+        branch_id = request.data.get("branch", None)
+
+        gender = request.data.get("gender", "Please Select")
+        mutable_data["gender"] = gender
+
+        serializer = self.get_serializer(data=mutable_data)
+        serializer.is_valid(raise_exception=True)
+        user_instance = serializer.save()
+
+        if role_ids:
+            valid_roles = Roles.objects.filter(id__in=role_ids)
+            user_instance.role.set(valid_roles)
+
+        if branch_id:
+            try:
+                branch_instance = Branch.objects.get(id=int(branch_id))
+                user_instance.branch = branch_instance
+            except (Branch.DoesNotExist, ValueError):
+                return Response({"error": "Invalid branch ID!"}, status=status.HTTP_400_BAD_REQUEST)
+
+        if "photo" in request.FILES:
+            user_instance.photo = request.FILES["photo"]
+
+        user_instance.save()
+
+        return Response(UsersSerializer(user_instance).data, status=status.HTTP_201_CREATED)
 
     def update(self, request, *args, **kwargs):
         instance = self.get_object()
@@ -265,7 +292,6 @@ class PermissionListAPIView(ListAPIView):
     filter_backends = [SearchFilter, OrderingFilter]
     search_fields = ['name', 'codename']
     pagination_class = None
-    pagination_class=MainPagination
 
     def get_queryset(self):
         role_id = self.request.query_params.get('role_id')
@@ -424,10 +450,26 @@ class UserGetRetrieve(RetrieveUpdateDestroyAPIView):
     serializer_class=UsersSerializer
     lookup_field='id'
 
+    def update(self, request, *args, **kwargs):
+        instance = self.get_object()
+        data = request.data.copy()
+
+        if 'photo' in request.FILES:
+            data['photo'] = request.FILES['photo']
+        elif 'photo' in data and data['photo'] in ["null", "", None]:  
+            instance.photo.delete(save=False)  
+            data.pop('photo')
+        
+        serializer = self.get_serializer(instance, data=data,partial=True)
+        serializer.is_valid(raise_exception=True)
+        self.perform_update(serializer)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+    
     def get_queryset(self):
         user=self.request.user
         return Users.objects.all()
-    
+
+
     def destroy(self, request, *args, **kwargs):
         instance = self.get_object()
     

@@ -31,7 +31,15 @@ class TokenAuthMiddleware:
 
         try:
             payload = jwt.decode(token, settings.SECRET_KEY, algorithms=['HS256'])
-            user = Users.objects.get(username=payload['username'])
+            print("Decoded JWT Payload:", payload)  # Debugging
+            user_id = payload.get('user_id')  # Use .get() to avoid KeyError
+
+            if not user_id:
+                print("JWT payload does not contain 'user_id'")
+                return AnonymousUser()
+
+            user = Users.objects.get(id=user_id)
             return user
+
         except (jwt.ExpiredSignatureError, jwt.DecodeError, Users.DoesNotExist):
             return AnonymousUser()

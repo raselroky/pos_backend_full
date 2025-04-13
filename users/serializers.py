@@ -6,14 +6,78 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from django.contrib.auth import authenticate
 from django.db.models import Q
 
+class RolesSerializer(serializers.ModelSerializer):
+    #permissions = serializers.SerializerMethodField()
+    class Meta:
+        model = Roles
+        fields = "__all__"
+
 class UsersSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True,required=False)
     role = serializers.PrimaryKeyRelatedField(queryset=Roles.objects.all(), many=True, required=False, allow_null=True)
     email=serializers.CharField(required=False)
+    role_name=serializers.SerializerMethodField()
+    branch_name=serializers.SerializerMethodField()
+    def get_branch_name(self,obj):
+        if obj.branch:
+            return {
+                "name":obj.branch.branch_name,
+                "address":obj.branch.address
+            }
+        return None
+    def get_role_name(self,obj):
+        return [role.title for role in obj.role.all()]
+        
+    # def create(self, validated_data):
+    #     password = validated_data.pop('password', None)  # Password remove kore nei
+    #     user = Users.objects.create(**validated_data)  # User create
+    #     if password:
+    #         user.set_password(password)  # Password hash kore save
+    #         user.save()
+    #     return user
 
+    def create(self, validated_data):
+        password = validated_data.pop("password", None)
+        roles = validated_data.pop("role", [])
+        branch = validated_data.pop("branch", None)
+
+        user = Users.objects.create(**validated_data)
+
+        if password:
+            user.set_password(password)
+
+        if roles:
+            user.role.set(roles)
+
+        if branch:
+            user.branch = branch
+
+        user.save()
+        return user
+    def update(self, instance, validated_data):
+        password = validated_data.pop("password", None)
+        roles = validated_data.pop("role", None)
+        branch = validated_data.pop("branch", None)
+
+        # ✅ Only update fields that are provided
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+
+        if password:
+            instance.set_password(password)
+
+        if roles is not None:
+            instance.role.set(roles)
+
+        if branch is not None:
+            instance.branch = branch
+
+        instance.save()
+        return instance
+    
     class Meta:
         model = Users
-        fields = ('id', 'email', 'first_name', 'last_name', 'photo', 'is_superadmin', 'is_active', 'age', 'password', 'role','branch')
+        fields = ('id', 'first_name', 'last_name','email','phone', 'photo', 'gender','is_superadmin', 'is_active', 'age', 'password', 'role','role_name','branch','branch_name')
 
     
 

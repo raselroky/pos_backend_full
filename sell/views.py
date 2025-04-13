@@ -1,6 +1,6 @@
 from django.shortcuts import render
-from .serializers import SaleSerializer,SaleHistorySerializer,SaleReturnSerializer,SaleReturnHistorySerializer,SaleReturnDetailsSerializer,SaleDetailsSerializer
-from .models import Sale,SaleHistory,SaleReturn,SaleReturnHistory
+from .serializers import SaleSerializer,SaleHistorySerializer,SaleReturnSerializer,SaleReturnHistorySerializer,SaleReturnDetailsSerializer,SaleDetailsSerializer,QuotationSerializer,QuotationHistorySerializer,QuotationDetailsSerializer
+from .models import Sale,SaleHistory,SaleReturn,SaleReturnHistory,Quotation,QuotationHistory
 from rest_framework.views import APIView
 from rest_framework.generics import ListAPIView,ListCreateAPIView,RetrieveAPIView,RetrieveUpdateDestroyAPIView
 from rest_framework.permissions import IsAuthenticated,AllowAny
@@ -31,60 +31,94 @@ class SaleListCreateAPIView(ListCreateAPIView):
     permission_classes = (IsAuthenticated,)
     queryset = Sale.objects.all()
     serializer_class = SaleSerializer
-    
+
     def create(self, request, *args, **kwargs):
         data = request.data.copy()
-        data['created_by'] = request.user.id
-        inv_sold=generate_invoice_no() 
-        data['invoice_no'] = inv_sold
+        data.pop("invoice_no", None)
+        data["created_by"] = request.user.id
+        data['branch'] = request.user.branch.id if request.user.branch else None
 
+        # invoice = generate_invoice_no()
+        # data['invoice_no'] = invoice
         with transaction.atomic():
-            customer_id = data.get("customer")  # Get customer ID from request
+            while True:
+                inv_sold = generate_invoice_no()
+                if not Sale.objects.filter(invoice_no=inv_sold).exists():
+                    break
+
+            data["invoice_no"] = inv_sold
+
+            customer_id = data.get("customer")
             customer = None
             if customer_id:
                 try:
                     customer = Contact.objects.get(id=customer_id)
                 except Contact.DoesNotExist:
-                    return Response({"error": f"Customer with ID {customer_id} does not exist."}, status=status.HTTP_400_BAD_REQUEST)
-            sale_history_data = data.get('sale_history', [])
-            total_sale_amount = 0
-            total_discount_amount = 0
+                    return Response(
+                        {"error": f"Customer with ID {customer_id} does not exist."},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+
+            sale_history_data = data.get("sale_history", [])
+            if not sale_history_data:
+                return Response(
+                    {"error": "At least one product must be included in the sale."},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            sale_serializer = self.get_serializer(data=data)
+            sale_serializer.is_valid(raise_exception=True)
+            sale = sale_serializer.save(created_by=request.user, customer=customer)
 
             for item in sale_history_data:
-                product_id = item.get('product_variant')
-                quantity = item.get('quantity', 0)
-                discount_amount = item.get('discount_amount', 0)
-                discount_percent = item.get('discount_percent', 0)
-                warranty = item.get('warranty', 0)
-                remark = item.get('remark', "")
-                #selling_price=item.get('selling_price', 0)
-                barcode = item.get('barcode', [])
-                if len(barcode) != quantity:
-                    return Response({"error": f"Number of barcodes ({len(barcode)}) must match the good quantity ({quantity})."}, status=status.HTTP_400_BAD_REQUEST)
+                product_id = item.get("product_variant")
+                quantity = item.get("quantity", 0)
+                discount_amount = item.get("discount_amount", 0)
+                discount_percent = item.get("discount_percent", 0)
+                warranty = item.get("warranty", 0)
+                remark = item.get("remark", "")
+                barcode = item.get("barcode", [])
+                
+                if barcode:
+                    if len(barcode) != quantity:
+                        return Response(
+                            {"error": f"Number of barcodes ({len(barcode)}) must match the quantity ({quantity})."},
+                            status=status.HTTP_400_BAD_REQUEST
+                        )
+                else:
+                    
+                    barcode_qs = ProductBarcodes.objects.filter(product_variant__id=product_id,product_status='Purchased').values_list('barcode', flat=True)
+                    barcode=list(barcode_qs[:quantity])
+
+                    if len(barcode) < quantity:
+                        return Response(
+                            {"error": f"Not enough available barcodes for this product (required: {quantity}, found: {len(barcode)})."},
+                                status=status.HTTP_400_BAD_REQUEST)
 
                 try:
                     stock = Stocks.objects.get(product_variant__id=product_id)
                 except Stocks.DoesNotExist:
-                    raise ValidationError(f"Stock with product variant ID {stock.product_variant.product.product_name} does not exist.")
-                
-                if stock.available_qty < quantity:
-                    raise ValidationError(
-                        f"Not enough stock available for product {stock.product_variant.product.product_name}. "
-                        f"Available: {stock.available_qty}, Requested: {quantity}"
+                    return Response(
+                        {"error": f"Stock with product variant ID {product_id} does not exist."},
+                        status=status.HTTP_400_BAD_REQUEST
                     )
+
+                if stock.available_qty < quantity:
+                    return Response(
+                        {"error": f"Not enough stock available for product {stock.product_variant.product.product_name}."},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+
                 for barcode_value in barcode:
                     try:
                         barcode_entry = ProductBarcodes.objects.get(barcode=barcode_value)
-                        
-                        # Validate barcode ownership
                         if barcode_entry.product_variant != stock.product_variant:
                             return Response(
                                 {"error": f"Barcode {barcode_value} does not belong to the specified product."},
                                 status=status.HTTP_400_BAD_REQUEST
                             )
 
-                        # Update barcode status
-                        barcode_entry.inv_sold= inv_sold
+                        barcode_entry.inv_sold = inv_sold
                         barcode_entry.product_status = "Sold"
                         barcode_entry.sold_at = now()
                         barcode_entry.remarks = "Sold via sales transaction"
@@ -95,10 +129,8 @@ class SaleListCreateAPIView(ListCreateAPIView):
                             {"error": f"Barcode {barcode_value} does not exist in records."},
                             status=status.HTTP_400_BAD_REQUEST
                         )
-                sale_serializer = self.get_serializer(data=data)
-                sale_serializer.is_valid(raise_exception=True)
-                sale = sale_serializer.save(created_by=request.user,customer=customer)
-                sale_history = SaleHistory.objects.create(
+
+                SaleHistory.objects.create(
                     sale=sale,
                     product_variant=stock,
                     quantity=quantity,
@@ -115,32 +147,27 @@ class SaleListCreateAPIView(ListCreateAPIView):
                 stock.available_qty -= quantity
                 stock.save()
 
+               
                 StockHistory.objects.create(
                     stock=stock,
-                    quantity=-quantity, 
-                    price=stock.selling_price, 
+                    quantity=-quantity,
+                    price=stock.selling_price,
                     log_type="Sale",
                     reference=sale.id,
                     created_by=request.user
                 )
 
-                
+        sale.save()
+        headers = self.get_success_headers(sale_serializer.data)
+        return Response(sale_serializer.data, status=status.HTTP_201_CREATED, headers=headers)
 
-
-            sale.save()
-
-            headers = self.get_success_headers(sale_serializer.data)
-            return Response(sale_serializer.data, status=status.HTTP_201_CREATED, headers=headers)
-
-    def get_queryset(self):
-        return Sale.objects.all()
 
 class SaleListAPIView(ListAPIView):
     permission_classes=[IsAuthenticated,]
     queryset=Sale.objects.all()
     serializer_class=SaleDetailsSerializer
     filter_backends = [SearchFilter, OrderingFilter]
-    search_fields = ['id']
+    search_fields = ['id','customer__business_name','customer__email','customer__mobile','customer__mobile2','customer__conact_id','customer__owner_name','invoice_no']
     pagination_class=MainPagination
 
     def get_queryset(self):
@@ -289,6 +316,7 @@ class SaleRetrieveAPIView(RetrieveAPIView):
     lookup_field='id'
 
     def get_queryset(self):
+        #print('views')
         return Sale.objects.all()
 
 
@@ -304,11 +332,19 @@ class SaleReturnListCreateAPIView(ListCreateAPIView):
     def create(self, request, *args, **kwargs):
         data = request.data.copy() 
         data['created_by'] = request.user.id 
-        return_no = generate_return_no() 
-        data['return_no'] = return_no
+        data['branch'] = request.user.branch.id if request.user.branch else None
+        # return_no = generate_return_no() 
+        # data['return_no'] = return_no
 
         with transaction.atomic():
             
+            while True:
+                return_no = generate_return_no() 
+                if not SaleReturn.objects.filter(return_no=return_no).exists():
+                    break
+
+            data["return_no"] =  return_no
+
 
             total_return_qty = 0
             total_refund_amount = 0
@@ -418,7 +454,7 @@ class SaleReturnListAPIView(ListAPIView):
     queryset=SaleReturn.objects.all()
     serializer_class=SaleReturnDetailsSerializer
     filter_backends = [SearchFilter, OrderingFilter]
-    search_fields = ['id']
+    search_fields =  ['id','sale__customer__business_name','sale__customer__email','sale__customer__mobile','sale__customer__mobile2','sale__customer__conact_id','sale__customer__owner_name','sale__invoice_no','return_no','return_date']
     pagination_class=MainPagination
 
     def get_queryset(self):
@@ -555,3 +591,320 @@ class SaleReturnRetrieveListAPIView(RetrieveAPIView):
 
     def get_queryset(self):
         return SaleReturn.objects.all()
+
+
+
+
+
+
+
+### quotation ###
+
+
+class QuotationListCreateAPIView(ListCreateAPIView):
+    permission_classes = (IsAuthenticated,)
+    queryset = Quotation.objects.all()
+    serializer_class = QuotationSerializer
+
+    def create(self, request, *args, **kwargs):
+        data = request.data.copy()
+        data.pop("invoice_no", None)
+        data["created_by"] = request.user.id
+        data['branch'] = request.user.branch.id if request.user.branch else None
+
+        # invoice = generate_invoice_no()
+        # data['invoice_no'] = invoice
+        with transaction.atomic():
+            while True:
+                inv_quotation = generate_invoice_no()
+                if not Quotation.objects.filter(invoice_no=inv_quotation).exists():
+                    break
+
+            data["invoice_no"] = inv_quotation
+
+            customer_id = data.get("customer")
+            customer = None
+            if customer_id:
+                try:
+                    customer = Contact.objects.get(id=customer_id)
+                except Contact.DoesNotExist:
+                    return Response(
+                        {"error": f"Customer with ID {customer_id} does not exist."},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+
+            quotation_history_data = data.get("quotation_history", [])
+            if not quotation_history_data:
+                return Response(
+                    {"error": "At least one product must be included in the quotation."},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            
+
+            for item in quotation_history_data:
+                product_id = item.get("product_variant")
+                quantity = item.get("quantity", 0)
+                discount_amount = item.get("discount_amount", 0)
+                discount_percent = item.get("discount_percent", 0)
+                warranty = item.get("warranty", 0)
+                remark = item.get("remark", "")
+                barcode = item.get("barcode", [])
+                
+                if barcode:
+                    if len(barcode) != quantity:
+                        print(f"Number of barcodes ({len(barcode)}) must match the quantity ({quantity}).")
+                        
+                        return Response(
+                            {"error": f"Number of barcodes ({len(barcode)}) must match the quantity ({quantity})."},
+                            status=status.HTTP_400_BAD_REQUEST
+                        )
+                else:
+                    barcode_qs = ProductBarcodes.objects.filter(product_variant__id=product_id,product_status='Purchased').values_list('barcode', flat=True)
+                    barcode=list(barcode_qs[:quantity])
+
+                    if len(barcode) != quantity:
+                        print(f"Not enough available barcodes for this product (required: {quantity}, found: {len(barcode)}).")
+                        
+                        return Response(
+                            {"error": f"Not enough available barcodes for this product (required: {quantity}, found: {len(barcode)})."},
+                                status=status.HTTP_400_BAD_REQUEST)
+                
+
+                try:
+                    stock = Stocks.objects.get(product_variant__id=product_id)
+                except Stocks.DoesNotExist:
+                    print(f"Stock with product variant ID {product_id} does not exist.")
+                    
+                    return Response(
+                        {"error": f"Stock with product variant ID {product_id} does not exist."},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+
+                if stock.available_qty < quantity:
+                    print(f"Not enough stock available for product {stock.product_variant.product.product_name}.")
+                    
+                    return Response(
+                        {"error": f"Not enough stock available for product {stock.product_variant.product.product_name}."},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+
+                for barcode_value in barcode:
+                    try:
+                        barcode_entry = ProductBarcodes.objects.get(barcode=barcode_value)
+                        if barcode_entry.product_variant != stock.product_variant:
+                            return Response(
+                                {"error": f"Barcode {barcode_value} does not belong to the specified product."},
+                                status=status.HTTP_400_BAD_REQUEST
+                            )
+
+                        barcode_entry.inv_quotation = inv_quotation
+                        barcode_entry.product_status = "Quotation"
+                        barcode_entry.quotation_at= now()
+                        barcode_entry.remarks = "quotation via sales transaction"
+                        barcode_entry.save()
+
+                    except ProductBarcodes.DoesNotExist:
+                        print(f"Barcode {barcode_value} does not exist in records.")
+                        return Response(
+                            {"error": f"Barcode {barcode_value} does not exist in records."},
+                            status=status.HTTP_400_BAD_REQUEST
+                        )
+                quotation_serializer = self.get_serializer(data=data)
+                quotation_serializer.is_valid(raise_exception=True)
+                quotation = quotation_serializer.save(created_by=request.user, customer=customer)
+                print("Creating quotation history for", stock.product_variant.product.product_name)
+
+                QuotationHistory.objects.create(
+                    quotation=quotation,
+                    product_variant=stock,
+                    quantity=quantity,
+                    unit_price=stock.purchase_price,
+                    selling_price=stock.selling_price,
+                    discount_amount=discount_amount,
+                    discount_percent=discount_percent,
+                    warranty=warranty,
+                    remark=remark,
+                    created_by=request.user,
+                    #branch=request.user.branch.id if request.user.branch else None
+                )
+
+                # stock.sold_qty += quantity
+                # stock.available_qty -= quantity
+                # stock.save()
+
+               
+                # StockHistory.objects.create(
+                #     stock=stock,
+                #     quantity=-quantity,
+                #     price=stock.selling_price,
+                #     log_type="Sale",
+                #     reference=sale.id,
+                #     created_by=request.user
+                # )
+
+        quotation.save()
+        headers = self.get_success_headers(quotation_serializer.data)
+        return Response(quotation_serializer.data, status=status.HTTP_201_CREATED, headers=headers)
+
+
+class QuotationListAPIView(ListAPIView):
+    permission_classes=[IsAuthenticated,]
+    queryset=Quotation.objects.all()
+    serializer_class=QuotationDetailsSerializer
+    filter_backends = [SearchFilter, OrderingFilter]
+    search_fields = ['id','customer__business_name','customer__email','customer__mobile','customer__mobile2','customer__conact_id','customer__owner_name','invoice_no']
+    pagination_class=MainPagination
+
+    def get_queryset(self):
+        return Quotation.objects.all()
+
+
+class QuotationRetrieveUpdateDestroyListAPIView(RetrieveUpdateDestroyAPIView):
+    permission_classes = [IsAuthenticated]
+    queryset = Quotation.objects.all()
+    serializer_class = QuotationDetailsSerializer
+    lookup_field = 'id'
+
+    def update(self, request, *args, **kwargs):
+        instance = self.get_object()
+        data = request.data.copy()
+
+        with transaction.atomic():
+            # Update the sale record
+            quotation_serializer = self.get_serializer(instance, data=data, partial=True)
+            quotation_serializer.is_valid(raise_exception=True)
+            quotation = quotation_serializer.save(updated_by=request.user)
+
+            quotation_history_data = data.get('quotation_history', [])
+            total_sale_amount = 0
+            total_discount_amount = 0
+
+            existing_quotation_history_ids = set(instance.quotation_history.values_list('id', flat=True))
+            new_quotation_history_ids = set()
+
+            for item in quotation_history_data:
+                product_id = item.get('product_variant')
+                quantity = item.get('quantity', 0)
+                discount_amount = item.get('discount_amount', 0)
+                discount_percent = item.get('discount_percent', 0)
+                warranty = item.get('warranty', 0)
+                remark = item.get('remark', "")
+                barcode = item.get('barcode', [])
+
+                if len(barcode) != quantity:
+                    print(f"Number of barcodes ({len(barcode)}) must match the quantity ({quantity}).")
+                    # return Response(
+                    #     {"error": f"Number of barcodes ({len(barcode)}) must match the quantity ({quantity})."},
+                    #     status=status.HTTP_400_BAD_REQUEST
+                    # )
+
+                try:
+                    stock = Stocks.objects.get(product_variant__id=product_id)
+                except Stocks.DoesNotExist:
+                    print(f"Stock with product variant ID {product_id} does not exist.")
+                    # return Response(
+                    #     {"error": f"Stock with product variant ID {product_id} does not exist."},
+                    #     status=status.HTTP_400_BAD_REQUEST
+                    # )
+
+                # Get previous sale history entry (if exists)
+                quotation_history, created = QuotationHistory.objects.get_or_create(
+                    quotation=quotation,
+                    product_variant=stock,
+                    defaults={
+                        "quantity": quantity,
+                        "unit_price": stock.purchase_price,
+                        "selling_price": stock.selling_price,
+                        "discount_amount": discount_amount,
+                        "discount_percent": discount_percent,
+                        "warranty": warranty,
+                        "remark": remark,
+                        "updated_by": request.user
+                    }
+                )
+
+                new_quotation_history_ids.add(quotation_history.id)
+
+                # Calculate stock adjustments
+                previous_quantity = quotation_history.quantity
+                # if previous_quantity != quantity:
+                #     stock.available_qty += previous_quantity  # Revert old quantity
+                #     stock.available_qty -= quantity  # Deduct new quantity
+                #     stock.sold_qty -= previous_quantity
+                #     stock.sold_qty += quantity
+                #     stock.save()
+
+                #     StockHistory.objects.create(
+                #         stock=stock,
+                #         quantity=-quantity,
+                #         price=stock.selling_price,
+                #         log_type="Sale Update",
+                #         reference=sale.id,
+                #         created_by=request.user
+                #     )
+
+                # Update sale history record
+                quotation_history.quantity = quantity
+                quotation_history.unit_price = stock.purchase_price
+                quotation_history.selling_price = stock.selling_price
+                quotation_history.discount_amount = discount_amount
+                quotation_history.discount_percent = discount_percent
+                quotation_history.warranty = warranty
+                quotation_history.remark = remark
+                quotation_history.updated_by = request.user
+                quotation_history.save()
+
+                
+
+                # Handle barcode updates
+                for barcode_value in barcode:
+                    try:
+                        barcode_entry = ProductBarcodes.objects.get(barcode=barcode_value)
+
+                        if barcode_entry.product_variant != stock.product_variant:
+                            return Response(
+                                {"error": f"Barcode {barcode_value} does not belong to the specified product."},
+                                status=status.HTTP_400_BAD_REQUEST
+                            )
+                        barcode_entry.inv_quotation=quotation.invoice_no
+                        barcode_entry.product_status = "Quotation"
+                        barcode_entry.quotation_at = now()
+                        barcode_entry.remarks = "Updated quotation transaction"
+                        barcode_entry.save()
+
+                    except ProductBarcodes.DoesNotExist:
+                        return Response(
+                            {"error": f"Barcode {barcode_value} does not exist in records."},
+                            status=status.HTTP_400_BAD_REQUEST
+                        )
+
+            # Remove deleted sale history records
+            to_delete = existing_quotation_history_ids - new_quotation_history_ids
+            QuotationHistory.objects.filter(id__in=to_delete).delete()
+
+            # Update total values in Sale
+            
+            quotation.save()
+
+            return Response(quotation_serializer.data, status=status.HTTP_200_OK)
+
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
+    
+        self.perform_destroy(instance)
+        return Response({"success": True, "message": "Deleted successfully"}, status=status.HTTP_200_OK)
+    
+
+
+
+
+class QuotationRetrieveAPIView(RetrieveAPIView):
+    permission_classes=[IsAuthenticated,]
+    queryset=Quotation.objects.all()
+    serializer_class=QuotationDetailsSerializer
+    lookup_field='id'
+
+    def get_queryset(self):
+        #print('views')
+        return Quotation.objects.all()

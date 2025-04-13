@@ -7,6 +7,8 @@ from products.serializers import ProductBarcodesDetailsSerializer,ProductBarcode
 from stock.models import Stocks,StockHistory
 from stock.serializers import StocksDetailsSerializer,StocksSerializer
 from contacts.models import Contact
+from django.db.models import Q
+
 
 class AdditionalExpenseSerializer(serializers.ModelSerializer):
     class Meta:
@@ -31,7 +33,7 @@ class PurchaseDetailsSerializer(serializers.ModelSerializer):
     def get_purchase_barcodes(self,obj):
         inv=obj.invoice_no
         #print(inv)
-        barcodes=ProductBarcodes.objects.filter(inv=inv,product_status='Purchased')
+        barcodes=ProductBarcodes.objects.filter(Q(inv=inv,product_status='Purchased') | Q(inv=inv))
         return ProductBarcodesSerializer(barcodes, many=True).data
     def get_return_barcodes(self,obj):
         inv=obj.invoice_no
@@ -86,7 +88,7 @@ class PurchaseHistoryDetailsSerializer2(serializers.ModelSerializer):
 
     def get_barcodes_purchase(self,obj):
         inv=obj.purchase.invoice_no
-        barcode=ProductBarcodes.objects.filter(inv=inv,product_status='Purchased')
+        barcode=ProductBarcodes.objects.filter(Q(inv=inv,product_status='Purchased') | Q(inv=inv))
         return ProductBarcodesDetailsSerializer(barcode,many=True).data
     class Meta:
         model=PurchaseHistory

@@ -27,7 +27,7 @@ from django.utils.timezone import now
 from helpers.barcode import generate_barcode_image
 from contacts.models import Contact
 from django.db.models import Sum
-
+import uuid
 
 
 class AdditionalExpenseListCreateAPIView(ListCreateAPIView):
@@ -40,7 +40,7 @@ class AdditionalExpenseListCreateAPIView(ListCreateAPIView):
         data = request.data.copy()  # Create a mutable copy of request.data
 
         data['created_by'] = request.user.id
-        
+        data['branch'] = request.user.branch.id if request.user.branch else None
         serializer = self.get_serializer(data=data)
         serializer.is_valid(raise_exception=True)
         self.perform_create(serializer)
@@ -95,11 +95,18 @@ class PurchaseListCreateAPIView(ListCreateAPIView):
     def create(self, request, *args, **kwargs):
         data = request.data.copy()
         data['created_by'] = request.user.id
-
-        invoice = generate_invoice_no()
-        data['invoice_no'] = invoice
+        data['branch'] = request.user.branch.id if request.user.branch else None
+        # invoice = generate_invoice_no()
+        # data['invoice_no'] = invoice
 
         with transaction.atomic():
+            while True:
+                inv_pur = generate_invoice_no()
+                if not Purchase.objects.filter(invoice_no=inv_pur).exists():
+                    break
+
+            data["invoice_no"] = inv_pur
+
 
             supplier_id = data.get('supplier')
             if not supplier_id:
@@ -133,9 +140,25 @@ class PurchaseListCreateAPIView(ListCreateAPIView):
                 remark = item.get('remark', ""),
                 selling_price = item.get('selling_price', 0)
                 barcode = item.get('barcode', [])
-                if len(barcode) != purchase_quantity:
-                    return Response({"error": f"Number of barcodes ({len(barcode)}) must match the good quantity ({purchase_quantity})."}, status=status.HTTP_400_BAD_REQUEST)
+
+                if not barcode:
+                    barcode = []
+                    for _ in range(purchase_quantity):
+                        generated_code = f"A-{uuid.uuid4().hex[:5].upper()}"
+                        if not ProductBarcodes.objects.filter(barcode=generated_code).exists():
+                            barcode.append(generated_code)
+                            break
+                        
+                else:
+                    if len(barcode) != purchase_quantity:
+                        return Response(
+                            {"error": f"Number of barcodes ({len(barcode)}) must match the purchase quantity ({purchase_quantity})."},
+                                status=status.HTTP_400_BAD_REQUEST
+                                    )
                 
+                if purchase_quantity!=(good_quantity+demaged_quantity):
+                    Response({"error":"purchase qunatity not summation of good quantity and demaged quantity"})
+
                 purchase_history = PurchaseHistory.objects.create(
                     purchase=purchase,
                     product_variant=product_variant,
@@ -188,7 +211,7 @@ class PurchaseListCreateAPIView(ListCreateAPIView):
                     barcode_image = generate_barcode_image(barcode_value)
                     #print(barcode_image,barcode_value)
                     ProductBarcodes.objects.create(
-                        inv=invoice,
+                        inv=inv_pur,
                         product_variant=product_variant,
                         product_status="Purchased",
                         barcode=barcode_value,
@@ -231,12 +254,10 @@ class PurchaseRetrieveUpdateDestroyListAPIView(RetrieveUpdateDestroyAPIView):
         data['updated_by'] = request.user.id
 
         with transaction.atomic():
-            # Update main purchase fields
             serializer = self.get_serializer(instance, data=data, partial=True)
             serializer.is_valid(raise_exception=True)
             purchase = serializer.save(updated_by=request.user)
 
-            # Get existing purchase history
             existing_purchase_history = {ph.product_variant.id: ph for ph in PurchaseHistory.objects.filter(purchase=purchase)}
 
             purchase_history_data = data.get('purchase_history', [])
@@ -254,7 +275,6 @@ class PurchaseRetrieveUpdateDestroyListAPIView(RetrieveUpdateDestroyAPIView):
                 selling_price = item.get('selling_price', 0)
                 barcode = item.get('barcode', [])
 
-                # Ensure barcode count matches good quantity
                 if len(barcode) != purchase_quantity:
                     return Response(
                         {"error": f"Number of barcodes ({len(barcode)}) must match the good quantity ({purchase_quantity})."},
@@ -271,11 +291,9 @@ class PurchaseRetrieveUpdateDestroyListAPIView(RetrieveUpdateDestroyAPIView):
                 if product_variant_id in existing_purchase_history:
                     old_purchase_history = existing_purchase_history.pop(product_variant_id)
                     
-                    # Adjust stock before updating
                     stock.total_qty -= old_purchase_history.purchase_quantity
                     stock.available_qty -= old_purchase_history.good_quantity
 
-                    # Update purchase history fields
                     old_purchase_history.purchase_quantity = purchase_quantity
                     old_purchase_history.good_quantity = good_quantity
                     old_purchase_history.demaged_quantity = demaged_quantity
@@ -287,7 +305,6 @@ class PurchaseRetrieveUpdateDestroyListAPIView(RetrieveUpdateDestroyAPIView):
                     old_purchase_history.save()
 
                 else:
-                    # Create a new purchase history entry
                     PurchaseHistory.objects.create(
                         purchase=purchase,
                         product_variant=product_variant,
@@ -302,7 +319,6 @@ class PurchaseRetrieveUpdateDestroyListAPIView(RetrieveUpdateDestroyAPIView):
                         created_by=request.user
                     )
 
-                # Update stock
                 stock.total_qty += purchase_quantity
                 stock.available_qty += good_quantity
                 stock.purchase_price = unit_price
@@ -321,15 +337,12 @@ class PurchaseRetrieveUpdateDestroyListAPIView(RetrieveUpdateDestroyAPIView):
                     created_by=request.user
                 )
 
-                # Handle barcodes
                 existing_barcodes = set(ProductBarcodes.objects.filter(product_variant=product_variant).values_list('barcode', flat=True))
                 new_barcodes = set(barcode)
 
-                # Delete removed barcodes
                 barcodes_to_delete = existing_barcodes - new_barcodes
                 ProductBarcodes.objects.filter(barcode__in=barcodes_to_delete).delete()
 
-                # Add new barcodes
                 barcodes_to_add = new_barcodes - existing_barcodes
                 for barcode_value in barcodes_to_add:
                     barcode_image = generate_barcode_image(barcode_value)
@@ -344,7 +357,6 @@ class PurchaseRetrieveUpdateDestroyListAPIView(RetrieveUpdateDestroyAPIView):
                         created_by=request.user
                     )
 
-            # Delete any remaining purchase history (items that were removed from the request)
             for remaining_ph in existing_purchase_history.values():
                 stock = Stocks.objects.get(product_variant=remaining_ph.product_variant)
                 stock.total_qty -= remaining_ph.purchase_quantity
@@ -386,10 +398,10 @@ class PurchaseHistoryListCreateAPIView(ListCreateAPIView):
     serializer_class=PurchaseHistorySerializer
     
     def create(self, request, *args, **kwargs):
-        # Modify request data to include created_by
-        data = request.data.copy()  # Create a mutable copy of request.data
+        data = request.data.copy() 
 
         data['created_by'] = request.user.id
+        data['branch'] = request.user.branch.id if request.user.branch else None
         invoice=generate_invoice_no()
         data['invoice_no']=invoice
 
@@ -459,9 +471,17 @@ class PurchaseReturnListCreateAPIView(ListCreateAPIView):
     def create(self, request, *args, **kwargs):
         data = request.data.copy()
         data['created_by'] = request.user.id
-        return_no = generate_return_no()
-        data['return_no'] = return_no
+        data['branch'] = request.user.branch.id if request.user.branch else None
+        # return_no = generate_return_no()
+        # data['return_no'] = return_no
         with transaction.atomic():
+            while True:
+                return_no = generate_return_no() 
+                if not PurchaseReturn.objects.filter(return_no=return_no).exists():
+                    break
+
+            data["return_no"] =  return_no
+
             purchase_return_serializer = self.get_serializer(data=data)
             purchase_return_serializer.is_valid(raise_exception=True)
             purchase_return = purchase_return_serializer.save(created_by=request.user)
@@ -476,12 +496,12 @@ class PurchaseReturnListCreateAPIView(ListCreateAPIView):
                 refund_amount = item.get('refund_amount', 0)
                 remark = item.get('remark', "")
                 barcode = item.get('barcode', [])
-
-                if len(barcode) != return_qty:
-                    return Response(
-                        {"error": f"Number of barcodes ({len(barcode)}) must match return quantity ({return_qty})."},
-                        status=status.HTTP_400_BAD_REQUEST
-                    )
+                if len(barcode)>0:
+                    if len(barcode) != return_qty:
+                        return Response(
+                            {"error": f"Number of barcodes ({len(barcode)}) must match return quantity ({return_qty})."},
+                            status=status.HTTP_400_BAD_REQUEST
+                        )
 
 
                 try:
@@ -504,8 +524,7 @@ class PurchaseReturnListCreateAPIView(ListCreateAPIView):
                 try:
                     stock = Stocks.objects.get(product_variant=purchase_history.product_variant)
                     stock.available_qty -= return_qty
-
-                    stock.sold_qty -= return_qty
+                    
                     stock.save()
 
                     StockHistory.objects.create(
@@ -545,25 +564,25 @@ class PurchaseReturnListCreateAPIView(ListCreateAPIView):
             purchase_return.total_refund_amount = total_refund_amount
             purchase_return.save()
 
-            purchase_id = purchase_return.purchase.id 
+            # purchase_id = purchase_return.purchase.id 
             
-            try:
-                purchase = Purchase.objects.get(id=purchase_id)
-                purchase.total_amount -= total_refund_amount
-                purchase.sub_total -= total_refund_amount
-                purchase.grand_total-=total_refund_amount
-                if purchase.paid_amount>0:
-                    purchase.paid_amount-=total_refund_amount
-                if purchase.due_amount>0:
-                    purchase.due_amount-=total_refund_amount
-                purchase.save() 
+            # try:
+            #     purchase = Purchase.objects.get(id=purchase_id)
+            #     purchase.total_amount -= total_refund_amount
+            #     purchase.sub_total -= total_refund_amount
+            #     purchase.grand_total-=total_refund_amount
+            #     if purchase.paid_amount>0:
+            #         purchase.paid_amount-=total_refund_amount
+            #     if purchase.due_amount>0:
+            #         purchase.due_amount-=total_refund_amount
+            #     purchase.save() 
 
-            except purchase.DoesNotExist:
-                raise ValidationError(f"Purhcase with ID {purchase_id} does not exist.")
+            # except purchase.DoesNotExist:
+            #     raise ValidationError(f"Purhcase with ID {purchase_id} does not exist.")
             
             
-            purchase_history.purchase_quantity-=total_return_qty
-            purchase_history.good_quantity-=total_return_qty
+            # purchase_history.purchase_quantity-=total_return_qty
+            # purchase_history.good_quantity-=total_return_qty
             purchase_history.save()
             
             headers = self.get_success_headers(purchase_return_serializer.data)
@@ -578,7 +597,7 @@ class PurchaseReturnListAPIView(ListAPIView):
     queryset=PurchaseReturn.objects.all()
     serializer_class=PurchaseReturnDetailsSerializer
     filter_backends = [SearchFilter, OrderingFilter]
-    search_fields = ['id','purchase__supplier__business_name','return_date','total_refund_amount','total_return_qty','purchase__invoice_no','purchase__supplier__mobile','purchase__supplier__email']
+    search_fields = ['id','purchase__supplier__business_name','return_date','total_refund_amount','total_return_qty','purchase__invoice_no','purchase__supplier__mobile','purchase__supplier__email','return_no']
     pagination_class=MainPagination
 
     def get_queryset(self):
@@ -728,7 +747,7 @@ class PurchaseReturnHistoryListCreateAPIView(ListCreateAPIView):
         data = request.data.copy()  # Create a mutable copy of request.data
 
         data['created_by'] = request.user.id
-        
+        data['branch'] = request.user.branch.id if request.user.branch else None
         serializer = self.get_serializer(data=data)
         serializer.is_valid(raise_exception=True)
         self.perform_create(serializer)

@@ -26,7 +26,6 @@ class Branch(models.Model):
     email = models.EmailField(max_length=100, null=True,blank=True)
     phone = models.CharField(max_length=20,null=True,blank=True)
     address = models.TextField(null=True,blank=True)
-    company_name = models.CharField(max_length=100, null=True,blank=True)
     
 
     class Meta: 
@@ -39,7 +38,3 @@ class Branch(models.Model):
         return str(self.branch_name)
 
     
-
-
-
- 

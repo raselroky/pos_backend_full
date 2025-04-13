@@ -30,7 +30,7 @@ class AdminNotificationListAPIView(ListAPIView):
     queryset=Notification.objects.filter()
     serializer_class=NotificationSerializer
     search_fields = ['title', 'verb', 'message']
-
+    #pagination_class = None
     def get_queryset(self):
         
         qs=Notification.objects.all().order_by(

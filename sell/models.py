@@ -12,7 +12,7 @@ PURCHASE_STATUS=(
     ('Ordered','Ordered')
 )
 PAYMENT_METHOD=(
-    ('None','None'),
+    ('Select Payment Method','Select Payment Method'),
     ('Cash','Cash'),
     ('Check','Check'),
     ('Bank-Card','Bank-Card'),
@@ -21,9 +21,9 @@ PAYMENT_METHOD=(
     ('Upay','Upay')
 )
 DISCOUNT_TYPE=(
-    ('Please Select','Please Select'),
+    ('Select Type','Select Type'),
     ('Percentage','Percentage'),
-    ('Fixed','Fixed')
+    ('Flat','Flat')
 )
 
 
@@ -31,12 +31,16 @@ class Sale(CommonAction):
     customer            = models.ForeignKey(Contact,related_name="sale",  on_delete=models.SET_NULL, blank=True, null=True)
     total_amount        = models.FloatField(default=0)
     discount_amount     = models.FloatField(default=0) 
-    discount_percent    = models.FloatField(default=0) 
+    discount_percent    = models.FloatField(default=0)
+    discount_type       = models.CharField(max_length=100,choices=DISCOUNT_TYPE,default='Select Type')
+    payment_method      = models.CharField(max_length=100,choices=PAYMENT_METHOD,default='Select Payment Method')
     vat_amount          = models.FloatField(default=0)
-    sub_total           = models.FloatField(default=0) 
+    sub_total           = models.FloatField(default=0)
+    grand_total         = models.FloatField(default=0)  
     paid_amount         = models.FloatField(default=0)
     due_amount          = models.FloatField(default=0)
     invoice_no          = models.CharField(max_length=20, unique=True)
+    
 
     class Meta:
         db_table = 'sale'
@@ -59,6 +63,7 @@ class SaleHistory(CommonAction):
     selling_price   =models.FloatField(default=0)
     discount_amount = models.FloatField(default=0) 
     discount_percent= models.FloatField(default=0) 
+    discount_type   = models.CharField(max_length=100,choices=DISCOUNT_TYPE,default='Select Type') 
     warranty        = models.PositiveIntegerField(default=0)
     remark          = models.CharField(max_length=300, null=True, blank=True)
 
@@ -113,3 +118,62 @@ class SaleReturnHistory(CommonAction):
     def __str__(self):
         return '%s' % str(self.sale_return)
 
+
+
+
+###  Quotation ###
+
+
+
+
+class Quotation(CommonAction):
+    customer            = models.ForeignKey(Contact,related_name="quotation",  on_delete=models.SET_NULL, blank=True, null=True)
+    total_amount        = models.FloatField(default=0)
+    discount_amount     = models.FloatField(default=0) 
+    discount_percent    = models.FloatField(default=0)
+    discount_type       = models.CharField(max_length=100,choices=DISCOUNT_TYPE,default='Select Type')
+    payment_method      = models.CharField(max_length=100,choices=PAYMENT_METHOD,default='Select Payment Method')
+    vat_amount          = models.FloatField(default=0)
+    sub_total           = models.FloatField(default=0)
+    grand_total         = models.FloatField(default=0)  
+    paid_amount         = models.FloatField(default=0)
+    due_amount          = models.FloatField(default=0)
+    invoice_no          = models.CharField(max_length=20, unique=True)
+    
+
+    class Meta:
+        db_table = 'quotation'
+        ordering = ['-created_at']
+        verbose_name = "Quotation"
+        verbose_name_plural = "Quotation" 
+        indexes = [
+            models.Index(fields=['-customer','-created_at']),
+        ]
+
+    def __str__(self):
+        return '%s' % str(self.invoice_no)
+
+
+class QuotationHistory(CommonAction):
+    quotation       = models.ForeignKey(Quotation, related_name="quotation_history", on_delete=models.SET_NULL, blank=True, null=True)
+    product_variant = models.ForeignKey("stock.Stocks", related_name="quotation_history", on_delete=models.SET_NULL, blank=True, null=True)
+    quantity        = models.FloatField(default=0)
+    unit_price      = models.FloatField(default=0)
+    selling_price   =models.FloatField(default=0)
+    discount_amount = models.FloatField(default=0) 
+    discount_percent= models.FloatField(default=0) 
+    discount_type   = models.CharField(max_length=100,choices=DISCOUNT_TYPE,default='Select Type') 
+    warranty        = models.PositiveIntegerField(default=0)
+    remark          = models.CharField(max_length=300, null=True, blank=True)
+
+    class Meta:
+        db_table = 'quotation_history'
+        ordering = ['-created_at']
+        verbose_name = "Quotation_History"
+        verbose_name_plural = "quotation Historys" 
+        indexes = [
+            models.Index(fields=['-product_variant','quotation','-created_at']),
+        ]
+
+    def __str__(self):
+        return '%s' % str(self.quotation)+" -> "+str(self.product_variant)

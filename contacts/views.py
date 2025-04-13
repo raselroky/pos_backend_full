@@ -29,6 +29,8 @@ class ContactListCreateAPIView(ListCreateAPIView):
         data = request.data.copy()  # Create a mutable copy of request.data
 
         data['created_by'] = request.user.id
+        data['branch'] = request.user.branch.id if request.user.branch else None
+
         
         serializer = self.get_serializer(data=data)
         serializer.is_valid(raise_exception=True)
@@ -61,6 +63,21 @@ class ContactRetrieveUpdateDestroyListAPIView(RetrieveUpdateDestroyAPIView):
     serializer_class=ContactDetailsSerializer
     lookup_field='id'
 
+    def update(self, request, *args, **kwargs):
+        instance = self.get_object()
+        data = request.data.copy()
+
+        if 'file_image' in request.FILES:
+            data['file_image'] = request.FILES['file_image']
+        elif 'file_image' in data and data['file_image'] in ["null", "", None]:  
+            instance.file_image.delete(save=False)  
+            data.pop('file_image')
+        
+        serializer = self.get_serializer(instance, data=data,partial=True)
+        serializer.is_valid(raise_exception=True)
+        self.perform_update(serializer)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+    
     def get_queryset(self):
         return Contact.objects.all()
     

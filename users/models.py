@@ -5,23 +5,20 @@ import uuid
 from users.managers import CustomUserManager, DeletedUserManager
 from django.contrib.auth.models import Permission
 
-class Users(AbstractUser):
-        
-    class Gender:
-        MALE = 'male'
-        FEMALE = 'female'
-        OTHERS = 'others'
-        CHOICES = (
-            (MALE, 'Male'),
-            (FEMALE, 'Female'),
-            (OTHERS, 'Others'),
+GENDER = (
+            ('Please Select','Please Select'),
+            ('Male', 'Male'),
+            ('Female', 'Female'),
+            ('Others', 'Others'),
         )
-        
+
+class Users(AbstractUser):
+         
 
     id              = models.UUIDField(default=uuid.uuid4, editable=False, primary_key=True)
     photo           = models.ImageField(upload_to="profile_pic/", null=True, blank=True)
     email           = models.EmailField(unique=True, max_length=170)
-    gender          = models.CharField(choices=Gender.CHOICES, default=Gender.MALE, max_length=10)
+    gender          = models.CharField(choices=GENDER, default='Please Select', max_length=100)
     phone           = models.CharField(max_length=15, null=True, blank=True,default="")
     age             = models.CharField(max_length=3, null=True, blank=True,default="")
     modified        = models.DateTimeField(auto_now=True)

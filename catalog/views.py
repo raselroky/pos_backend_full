@@ -28,7 +28,7 @@ class ProductUnitListCreateAPIView(ListCreateAPIView):
         data = request.data.copy()  # Create a mutable copy of request.data
 
         data['created_by'] = request.user.id
-        
+        data['branch'] = request.user.branch.id if request.user.branch else None
         serializer = self.get_serializer(data=data)
         serializer.is_valid(raise_exception=True)
         self.perform_create(serializer)
@@ -73,7 +73,7 @@ class BrandListCreateAPIView(ListCreateAPIView):
         data = request.data.copy()  # Create a mutable copy of request.data
 
         data['created_by'] = request.user.id
-        
+        data['branch'] = request.user.branch.id if request.user.branch else None
         serializer = self.get_serializer(data=data)
         serializer.is_valid(raise_exception=True)
         self.perform_create(serializer)
@@ -118,7 +118,7 @@ class CategoryListCreateAPIView(ListCreateAPIView):
         data = request.data.copy()  # Create a mutable copy of request.data
 
         data['created_by'] = request.user.id
-        
+        data['branch'] = request.user.branch.id if request.user.branch else None
         serializer = self.get_serializer(data=data)
         serializer.is_valid(raise_exception=True)
         self.perform_create(serializer)
@@ -138,6 +138,7 @@ class CategoryListAPIView(ListAPIView):
     filter_backends = [SearchFilter, OrderingFilter]
     search_fields = ['id','category_name','description']
     pagination_class=MainPagination
+
 
 class CategoryRetrieveUpdateDestroy(RetrieveUpdateDestroyAPIView):
     permission_classes=[IsAuthenticated,]
@@ -164,7 +165,7 @@ class SubCategoryListCreateAPIView(ListCreateAPIView):
         data = request.data.copy()  # Create a mutable copy of request.data
 
         data['created_by'] = request.user.id
-        
+        data['branch'] = request.user.branch.id if request.user.branch else None
         serializer = self.get_serializer(data=data)
         serializer.is_valid(raise_exception=True)
         self.perform_create(serializer)
@@ -213,7 +214,7 @@ class ColorVariationListCreateAPIView(ListCreateAPIView):
         data = request.data.copy()  # Create a mutable copy of request.data
 
         data['created_by'] = request.user.id
-        
+        data['branch'] = request.user.branch.id if request.user.branch else None
         serializer = self.get_serializer(data=data)
         serializer.is_valid(raise_exception=True)
         self.perform_create(serializer)
@@ -260,7 +261,7 @@ class AttributeVariationListCreateAPIView(ListCreateAPIView):
         data = request.data.copy()  # Create a mutable copy of request.data
 
         data['created_by'] = request.user.id
-        
+        data['branch'] = request.user.branch.id if request.user.branch else None
         serializer = self.get_serializer(data=data)
         serializer.is_valid(raise_exception=True)
         self.perform_create(serializer)

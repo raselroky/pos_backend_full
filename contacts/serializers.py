@@ -2,11 +2,14 @@ from rest_framework import serializers
 from .models import Contact
 
 class ContactSerializer(serializers.ModelSerializer):
+    #opening_balance=serializers.CharField(required=False)
+
     class Meta:
         model=Contact
         fields='__all__'
 
 class ContactDetailsSerializer(serializers.ModelSerializer):
+
     created_by = serializers.SerializerMethodField()
     updated_by = serializers.SerializerMethodField()
     refer = serializers.SerializerMethodField()

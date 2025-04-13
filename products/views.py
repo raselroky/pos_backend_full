@@ -23,6 +23,7 @@ from helpers.barcode import generate_barcode_image
 import pandas as pd
 from rest_framework.viewsets import ModelViewSet
 from django.db import transaction
+from catalog.models import ColorVariation,AttributeVariation
 
 
 class ProductListCreateAPIView(ListCreateAPIView):
@@ -34,6 +35,7 @@ class ProductListCreateAPIView(ListCreateAPIView):
     def create(self, request, *args, **kwargs):
         data = request.data.copy()
         data['created_by'] = request.user.id
+        data['branch'] = request.user.branch.id if request.user.branch else None
         sku = request.data.get('sku', identifier_builder(table_name='products'))
         data['sku'] = sku
 
@@ -45,16 +47,19 @@ class ProductListCreateAPIView(ListCreateAPIView):
 
         with transaction.atomic():
             product = serializer.save(created_by=request.user)
+            branch_id = product.branch.id if product.branch else None
 
             ProductVariantAttribute.objects.create(
                 product=product,
                 color_attribute_id=color_id,
                 variation_attribute_id=size_id,
-                created_by=request.user
+                created_by=request.user,
+                branch_id=branch_id
             )
 
         headers = self.get_success_headers(serializer.data)
         return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
+
 
 
 class ProductListAPIView(ListAPIView):
@@ -73,6 +78,55 @@ class ProductRetrieveUpdateDestroy(RetrieveUpdateDestroyAPIView):
     queryset=Product.objects.all()
     serializer_class=ProductSerializer
     lookup_field='id'
+
+    def update(self, request, *args, **kwargs):
+        instance = self.get_object()
+        data = request.data.copy()
+
+        if 'images' in request.FILES:
+            data['images'] = request.FILES['images']
+        elif 'images' in data and data['images'] in ["null", "", None]:  
+            instance.images.delete(save=False)  
+            data.pop('images')
+
+        color_id = data.get("color_attribute")
+        size_id = data.get("variation_attribute")
+
+        try:
+            color_id = int(color_id) if color_id else None
+        except (ValueError, TypeError):
+            return Response({"error": "Invalid color_attribute ID!"}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            size_id = int(size_id) if size_id else None
+        except (ValueError, TypeError):
+            return Response({"error": "Invalid variation_attribute ID!"}, status=status.HTTP_400_BAD_REQUEST)
+
+        serializer = self.get_serializer(instance, data=data,partial=True)
+        serializer.is_valid(raise_exception=True)
+
+        with transaction.atomic():
+            self.perform_update(serializer)
+
+            if color_id or size_id:
+                variant, created = ProductVariantAttribute.objects.get_or_create(product=instance)
+
+                if color_id:
+                    try:
+                        variant.color_attribute = ColorVariation.objects.get(id=color_id)
+                    except ColorVariation.DoesNotExist:
+                        return Response({"error": "Invalid color_attribute ID!"}, status=status.HTTP_400_BAD_REQUEST)
+
+                if size_id:
+                    try:
+                        variant.variation_attribute = AttributeVariation.objects.get(id=size_id)
+                    except AttributeVariation.DoesNotExist:
+                        return Response({"error": "Invalid variation_attribute ID!"}, status=status.HTTP_400_BAD_REQUEST)
+
+                variant.save()
+
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
 
     def get_queryset(self):
         user=self.request.user
@@ -108,6 +162,7 @@ class ProductVariantAttributeListCreateAPIView(ListCreateAPIView):
     def create(self, request, *args, **kwargs):
         data = request.data.copy()  
         data['created_by'] = request.user.id
+        data['branch'] = request.user.branch.id if request.user.branch else None
         serializer = self.get_serializer(data=data)
         serializer.is_valid(raise_exception=True)
         self.perform_create(serializer)
@@ -196,6 +251,7 @@ class ProductBarcodeListCreateAPIView(ListCreateAPIView):
     def create(self, request, *args, **kwargs):
         data = request.data.copy()  
         data['created_by'] = request.user.id
+        data['branch'] = request.user.branch.id if request.user.branch else None
         product_id = request.data.get('product_variant')
         try:
             product_variant = ProductVariantAttribute.objects.get(id=product_id)

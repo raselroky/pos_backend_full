@@ -90,6 +90,7 @@ class StockTransfer(CommonAction):
     accept_branch=models.ForeignKey(Branch,related_name='accept_branch',on_delete=models.CASCADE,null=True,blank=True)
     given_branch=models.ForeignKey(Branch,on_delete=models.CASCADE,null=True,blank=True)
     is_accept=models.BooleanField(default=False)
+    
     class Meta:
         db_table = 'stock_tarnsfer'
         verbose_name = "Stock Transfer"

@@ -22,10 +22,12 @@ from helpers.barcode import generate_barcode_image
 from products.models import ProductBarcodes
 from django.db.models import Sum
 from contacts.models import Contact
-
 from channels.layers import get_channel_layer
 from asgiref.sync import async_to_sync
 from notifications.signals import send_notification
+from setting.models import InvoiceSetting
+
+
 
 class SaleListCreateAPIView(ListCreateAPIView):
     permission_classes = (IsAuthenticated,)
@@ -37,7 +39,7 @@ class SaleListCreateAPIView(ListCreateAPIView):
         data.pop("invoice_no", None)
         data["created_by"] = request.user.id
         data['branch'] = request.user.branch.id if request.user.branch else None
-
+        
         # invoice = generate_invoice_no()
         # data['invoice_no'] = invoice
         with transaction.atomic():
@@ -45,8 +47,18 @@ class SaleListCreateAPIView(ListCreateAPIView):
                 inv_sold = generate_invoice_no()
                 if not Sale.objects.filter(invoice_no=inv_sold).exists():
                     break
-
-            data["invoice_no"] = inv_sold
+            
+            
+            prefixs = data.get("prefix", None)
+            if prefixs:
+                invoicesetting=InvoiceSetting.objects.filter(id=prefixs,assign_branch=data['branch'])
+                if invoicesetting.exists():
+                    invoicesetting2=InvoiceSetting.objects.filter(id=prefixs,assign_branch=data['branch']).first()
+                    data["invoice_no"] =str(invoicesetting2.prefix)+'-'+inv_sold
+                else:
+                    raise ValidationError({"error": f"This prefix doesnt exist for you."})
+            else:
+                data["invoice_no"] = inv_sold
 
             customer_id = data.get("customer")
             customer = None
@@ -54,17 +66,15 @@ class SaleListCreateAPIView(ListCreateAPIView):
                 try:
                     customer = Contact.objects.get(id=customer_id)
                 except Contact.DoesNotExist:
-                    return Response(
-                        {"error": f"Customer with ID {customer_id} does not exist."},
-                        status=status.HTTP_400_BAD_REQUEST
-                    )
+                    raise ValidationError(
+                        {"error": f"Customer with ID {customer_id} does not exist."})
+
 
             sale_history_data = data.get("sale_history", [])
             if not sale_history_data:
-                return Response(
-                    {"error": "At least one product must be included in the sale."},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
+                raise ValidationError(
+                    {"error": "At least one product must be included in the sale."})
+                    
 
             sale_serializer = self.get_serializer(data=data)
             sale_serializer.is_valid(raise_exception=True)
@@ -75,60 +85,58 @@ class SaleListCreateAPIView(ListCreateAPIView):
                 quantity = item.get("quantity", 0)
                 discount_amount = item.get("discount_amount", 0)
                 discount_percent = item.get("discount_percent", 0)
+                discount_type = item.get("discount_type", "Select Type").strip()
+                vat_amounts=item.get("vat_amounts",0)
+                total_amount_iv=item.get("total_amount_iv",0)
+                total_amount_wv=item.get("total_amount_wv",0)
                 warranty = item.get("warranty", 0)
                 remark = item.get("remark", "")
                 barcode = item.get("barcode", [])
                 
                 if barcode:
                     if len(barcode) != quantity:
-                        return Response(
-                            {"error": f"Number of barcodes ({len(barcode)}) must match the quantity ({quantity})."},
-                            status=status.HTTP_400_BAD_REQUEST
-                        )
+                        raise ValidationError(
+                            {"error": f"Number of barcodes ({len(barcode)}) must match the quantity ({quantity})."})
+                            
                 else:
-                    
                     barcode_qs = ProductBarcodes.objects.filter(product_variant__id=product_id,product_status='Purchased').values_list('barcode', flat=True)
                     barcode=list(barcode_qs[:quantity])
 
                     if len(barcode) < quantity:
-                        return Response(
-                            {"error": f"Not enough available barcodes for this product (required: {quantity}, found: {len(barcode)})."},
-                                status=status.HTTP_400_BAD_REQUEST)
+                        raise ValidationError(
+                            {"error": f"Not enough available barcodes for this product (required: {quantity}, found: {len(barcode)})."})
+                                
 
                 try:
                     stock = Stocks.objects.get(product_variant__id=product_id)
                 except Stocks.DoesNotExist:
-                    return Response(
-                        {"error": f"Stock with product variant ID {product_id} does not exist."},
-                        status=status.HTTP_400_BAD_REQUEST
-                    )
+                    raise ValidationError(
+                        {"error": f"Stock with product variant ID {product_id} does not exist."})
+                        
 
                 if stock.available_qty < quantity:
-                    return Response(
-                        {"error": f"Not enough stock available for product {stock.product_variant.product.product_name}."},
-                        status=status.HTTP_400_BAD_REQUEST
-                    )
+                    raise ValidationError(
+                        {"error": f"Not enough stock available for product {stock.product_variant.product.product_name}."})
+                        
 
                 for barcode_value in barcode:
                     try:
                         barcode_entry = ProductBarcodes.objects.get(barcode=barcode_value)
                         if barcode_entry.product_variant != stock.product_variant:
-                            return Response(
-                                {"error": f"Barcode {barcode_value} does not belong to the specified product."},
-                                status=status.HTTP_400_BAD_REQUEST
-                            )
+                            raise ValidationError(
+                                {"error": f"Barcode {barcode_value} does not belong to the specified product."})
+                                
 
-                        barcode_entry.inv_sold = inv_sold
+                        barcode_entry.inv_sold = data["invoice_no"]
                         barcode_entry.product_status = "Sold"
                         barcode_entry.sold_at = now()
                         barcode_entry.remarks = "Sold via sales transaction"
                         barcode_entry.save()
 
                     except ProductBarcodes.DoesNotExist:
-                        return Response(
-                            {"error": f"Barcode {barcode_value} does not exist in records."},
-                            status=status.HTTP_400_BAD_REQUEST
-                        )
+                        raise ValidationError(
+                            {"error": f"Barcode {barcode_value} does not exist in records."})
+                            
 
                 SaleHistory.objects.create(
                     sale=sale,
@@ -138,6 +146,10 @@ class SaleListCreateAPIView(ListCreateAPIView):
                     selling_price=stock.selling_price,
                     discount_amount=discount_amount,
                     discount_percent=discount_percent,
+                    discount_type=discount_type,
+                    vat_amounts=vat_amounts,
+                    total_amount_iv=total_amount_iv,
+                    total_amount_wv=total_amount_wv,
                     warranty=warranty,
                     remark=remark,
                     created_by=request.user
@@ -168,10 +180,14 @@ class SaleListAPIView(ListAPIView):
     serializer_class=SaleDetailsSerializer
     filter_backends = [SearchFilter, OrderingFilter]
     search_fields = ['id','customer__business_name','customer__email','customer__mobile','customer__mobile2','customer__conact_id','customer__owner_name','invoice_no']
-    pagination_class=MainPagination
+    #pagination_class=MainPagination
 
     def get_queryset(self):
-        return Sale.objects.all()
+        queryset = Sale.objects.all()
+        
+        
+
+        return queryset
 
 
 class SaleRetrieveUpdateDestroyListAPIView(RetrieveUpdateDestroyAPIView):
@@ -202,23 +218,22 @@ class SaleRetrieveUpdateDestroyListAPIView(RetrieveUpdateDestroyAPIView):
                 quantity = item.get('quantity', 0)
                 discount_amount = item.get('discount_amount', 0)
                 discount_percent = item.get('discount_percent', 0)
+                discount_type = item.get("discount_type", "Select Type").strip()
                 warranty = item.get('warranty', 0)
                 remark = item.get('remark', "")
                 barcode = item.get('barcode', [])
 
                 if len(barcode) != quantity:
-                    return Response(
-                        {"error": f"Number of barcodes ({len(barcode)}) must match the quantity ({quantity})."},
-                        status=status.HTTP_400_BAD_REQUEST
-                    )
+                    raise ValidationError(
+                        {"error": f"Number of barcodes ({len(barcode)}) must match the quantity ({quantity})."})
+                        
 
                 try:
                     stock = Stocks.objects.get(product_variant__id=product_id)
                 except Stocks.DoesNotExist:
-                    return Response(
-                        {"error": f"Stock with product variant ID {product_id} does not exist."},
-                        status=status.HTTP_400_BAD_REQUEST
-                    )
+                    raise ValidationError(
+                        {"error": f"Stock with product variant ID {product_id} does not exist."})
+                        
 
                 # Get previous sale history entry (if exists)
                 sale_history, created = SaleHistory.objects.get_or_create(
@@ -230,6 +245,7 @@ class SaleRetrieveUpdateDestroyListAPIView(RetrieveUpdateDestroyAPIView):
                         "selling_price": stock.selling_price,
                         "discount_amount": discount_amount,
                         "discount_percent": discount_percent,
+                        "discount_type":discount_type,
                         "warranty": warranty,
                         "remark": remark,
                         "updated_by": request.user
@@ -262,6 +278,7 @@ class SaleRetrieveUpdateDestroyListAPIView(RetrieveUpdateDestroyAPIView):
                 sale_history.selling_price = stock.selling_price
                 sale_history.discount_amount = discount_amount
                 sale_history.discount_percent = discount_percent
+                sale_history.discount_type=discount_type
                 sale_history.warranty = warranty
                 sale_history.remark = remark
                 sale_history.updated_by = request.user
@@ -275,10 +292,9 @@ class SaleRetrieveUpdateDestroyListAPIView(RetrieveUpdateDestroyAPIView):
                         barcode_entry = ProductBarcodes.objects.get(barcode=barcode_value)
 
                         if barcode_entry.product_variant != stock.product_variant:
-                            return Response(
-                                {"error": f"Barcode {barcode_value} does not belong to the specified product."},
-                                status=status.HTTP_400_BAD_REQUEST
-                            )
+                            raise ValidationError(
+                                {"error": f"Barcode {barcode_value} does not belong to the specified product."})
+                                
                         barcode_entry.inv_sold=sale.invoice_no
                         barcode_entry.product_status = "Sold"
                         barcode_entry.sold_at = now()
@@ -286,10 +302,9 @@ class SaleRetrieveUpdateDestroyListAPIView(RetrieveUpdateDestroyAPIView):
                         barcode_entry.save()
 
                     except ProductBarcodes.DoesNotExist:
-                        return Response(
-                            {"error": f"Barcode {barcode_value} does not exist in records."},
-                            status=status.HTTP_400_BAD_REQUEST
-                        )
+                        raise ValidationError(
+                            {"error": f"Barcode {barcode_value} does not exist in records."})
+                            
 
             # Remove deleted sale history records
             to_delete = existing_sale_history_ids - new_sale_history_ids
@@ -339,11 +354,20 @@ class SaleReturnListCreateAPIView(ListCreateAPIView):
         with transaction.atomic():
             
             while True:
-                return_no = generate_return_no() 
+                return_no = generate_return_no()+'s'
                 if not SaleReturn.objects.filter(return_no=return_no).exists():
                     break
 
-            data["return_no"] =  return_no
+            prefixs = data.get("prefix", None)
+            if prefixs:
+                invoicesetting=InvoiceSetting.objects.filter(id=prefixs,assign_branch=data['branch'])
+                if invoicesetting.exists():
+                    invoicesetting2=InvoiceSetting.objects.filter(id=prefixs,assign_branch=data['branch']).first()
+                    data["return_no"] =str(invoicesetting2.prefix)+'-'+return_no
+                else:
+                    raise ValidationError({"error": f"This prefix doesnt exist for you."})
+            else:
+                data["return_no"] = return_no
 
 
             total_return_qty = 0
@@ -378,7 +402,8 @@ class SaleReturnListCreateAPIView(ListCreateAPIView):
                                 {"error": f"Barcode {barcode_value} does not belong to the returned product."},
                                 status=status.HTTP_400_BAD_REQUEST
                             )
-
+                        
+                        barcode_entry.inv_return_no=data["return_no"]
                         barcode_entry.product_status = "Sales Return"
                         barcode_entry.sold_at = None  
                         barcode_entry.sales_return_at = now() 
@@ -620,7 +645,16 @@ class QuotationListCreateAPIView(ListCreateAPIView):
                 if not Quotation.objects.filter(invoice_no=inv_quotation).exists():
                     break
 
-            data["invoice_no"] = inv_quotation
+            prefixs = data.get("prefix", None)
+            if prefixs:
+                invoicesetting=InvoiceSetting.objects.filter(id=prefixs,assign_branch=data['branch'])
+                if invoicesetting.exists():
+                    invoicesetting2=InvoiceSetting.objects.filter(id=prefixs,assign_branch=data['branch']).first()
+                    data["invoice_no"] =str(invoicesetting2.prefix)+'-'+inv_quotation
+                else:
+                    raise ValidationError({"error": f"This prefix doesnt exist for you."})
+            else:
+                data["invoice_no"] = inv_quotation
 
             customer_id = data.get("customer")
             customer = None
@@ -698,7 +732,7 @@ class QuotationListCreateAPIView(ListCreateAPIView):
                                 status=status.HTTP_400_BAD_REQUEST
                             )
 
-                        barcode_entry.inv_quotation = inv_quotation
+                        barcode_entry.inv_quotation = data["invoice_no"]
                         barcode_entry.product_status = "Quotation"
                         barcode_entry.quotation_at= now()
                         barcode_entry.remarks = "quotation via sales transaction"
@@ -844,7 +878,6 @@ class QuotationRetrieveUpdateDestroyListAPIView(RetrieveUpdateDestroyAPIView):
                 #         created_by=request.user
                 #     )
 
-                # Update sale history record
                 quotation_history.quantity = quantity
                 quotation_history.unit_price = stock.purchase_price
                 quotation_history.selling_price = stock.selling_price
@@ -855,9 +888,6 @@ class QuotationRetrieveUpdateDestroyListAPIView(RetrieveUpdateDestroyAPIView):
                 quotation_history.updated_by = request.user
                 quotation_history.save()
 
-                
-
-                # Handle barcode updates
                 for barcode_value in barcode:
                     try:
                         barcode_entry = ProductBarcodes.objects.get(barcode=barcode_value)
@@ -879,11 +909,9 @@ class QuotationRetrieveUpdateDestroyListAPIView(RetrieveUpdateDestroyAPIView):
                             status=status.HTTP_400_BAD_REQUEST
                         )
 
-            # Remove deleted sale history records
             to_delete = existing_quotation_history_ids - new_quotation_history_ids
             QuotationHistory.objects.filter(id__in=to_delete).delete()
 
-            # Update total values in Sale
             
             quotation.save()
 
@@ -895,8 +923,6 @@ class QuotationRetrieveUpdateDestroyListAPIView(RetrieveUpdateDestroyAPIView):
         self.perform_destroy(instance)
         return Response({"success": True, "message": "Deleted successfully"}, status=status.HTTP_200_OK)
     
-
-
 
 
 class QuotationRetrieveAPIView(RetrieveAPIView):

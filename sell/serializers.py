@@ -63,8 +63,8 @@ class SaleReturnHistorySerializer(serializers.ModelSerializer):
     barcodes_return=serializers.SerializerMethodField()
 
     def get_barcodes_return(self,obj):
-        #print(obj)
-        barcode=ProductBarcodes.objects.filter(inv_sold=obj.sale_return.sale.invoice_no,product_status='Sales Return')
+        #print('obj return',obj.sale_return.return_no)
+        barcode=ProductBarcodes.objects.filter(inv_sold=obj.sale_return.sale.invoice_no,product_status='Sales Return',inv_return_no=obj.sale_return.return_no)
         return ProductBarcodesDetailsSerializer(barcode,many=True).data
     class Meta:
         model=SaleReturnHistory
@@ -75,7 +75,7 @@ class SaleReturnDetailsSerializer(serializers.ModelSerializer):
     sale_return_history=serializers.SerializerMethodField()
 
     def get_sale_return_history(self,obj):
-        #print(obj)
+        #print(obj.return_no)
         sale_returns=SaleReturnHistory.objects.filter(sale_return__return_no=obj.return_no)
         serializer=SaleReturnHistorySerializer(sale_returns,many=True)
         return serializer.data

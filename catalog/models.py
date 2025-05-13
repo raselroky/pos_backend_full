@@ -22,6 +22,8 @@ class Category(CommonAction):
     category_code=models.CharField(max_length=20,null=True,blank=True)
     description=models.TextField(null=True,blank=True)
     image       = models.ImageField(upload_to='categories/', null=True, blank=True, default=None) 
+    vat_amounts = models.FloatField(default=0)
+    vat_percentage = models.FloatField(default=0)
 
     class Meta: 
         db_table = 'categorys'

@@ -28,6 +28,11 @@ from helpers.barcode import generate_barcode_image
 from contacts.models import Contact
 from django.db.models import Sum
 import uuid
+from django.db import IntegrityError
+from rest_framework.exceptions import ValidationError
+from setting.models import InvoiceSetting,BarcodeSetting
+
+
 
 
 class AdditionalExpenseListCreateAPIView(ListCreateAPIView):
@@ -105,17 +110,26 @@ class PurchaseListCreateAPIView(ListCreateAPIView):
                 if not Purchase.objects.filter(invoice_no=inv_pur).exists():
                     break
 
-            data["invoice_no"] = inv_pur
+            prefixs = data.get("prefix", None)
+            if prefixs:
+                invoicesetting=InvoiceSetting.objects.filter(id=prefixs,assign_branch=data['branch'])
+                if invoicesetting.exists():
+                    invoicesetting2=InvoiceSetting.objects.filter(id=prefixs,assign_branch=data['branch']).first()
+                    data["invoice_no"] =str(invoicesetting2.prefix)+'-'+inv_pur
+                else:
+                    raise ValidationError({"error": f"This prefix doesnt exist for you."})
+            else:
+                data["invoice_no"] = inv_pur
 
 
             supplier_id = data.get('supplier')
             if not supplier_id:
-                return Response({"error": "Supplier ID is required."}, status=status.HTTP_400_BAD_REQUEST)
+                raise ValidationError({"error": "Supplier ID is required."})
 
             try:
                 supplier = Contact.objects.get(id=supplier_id)
             except Contact.DoesNotExist:
-                return Response({"error": f"Supplier with ID {supplier_id} does not exist."}, status=status.HTTP_400_BAD_REQUEST)
+                raise ValidationError({"error": f"Supplier with ID {supplier_id} does not exist."})
         
             purchase_serializer = self.get_serializer(data=data)
             purchase_serializer.is_valid(raise_exception=True)
@@ -127,7 +141,7 @@ class PurchaseListCreateAPIView(ListCreateAPIView):
                 try:
                     product_variant = ProductVariantAttribute.objects.get(id=product_variant_id)
                 except ProductVariantAttribute.DoesNotExist:
-                    return Response({"error": f"Product Variant with ID {product_variant_id} does not exist."}, status=status.HTTP_400_BAD_REQUEST)
+                    raise ValidationError({"error": f"Product Variant with ID {product_variant_id} does not exist."})
                 
                 
                 purchase_quantity = item.get('purchase_quantity', 0)
@@ -136,28 +150,32 @@ class PurchaseListCreateAPIView(ListCreateAPIView):
                 unit_price = item.get('unit_price', 0)
                 discount_amount = item.get('discount_amount', 0)
                 discount_percent = item.get('discount_percent', 0)
+                discount_type = item.get("discount_type", "Select Type").strip()
+                vat_amounts=item.get("vat_amounts",0)
+                total_amount_iv=item.get("total_amount_iv",0)
+                total_amount_wv=item.get("total_amount_wv",0)
                 warranty = item.get('warranty', 0)
-                remark = item.get('remark', ""),
+                remark = item.get('remark', "")
                 selling_price = item.get('selling_price', 0)
                 barcode = item.get('barcode', [])
 
                 if not barcode:
                     barcode = []
-                    for _ in range(purchase_quantity):
-                        generated_code = f"A-{uuid.uuid4().hex[:5].upper()}"
-                        if not ProductBarcodes.objects.filter(barcode=generated_code).exists():
+                    while len(barcode) < purchase_quantity:
+                        generated_code = f"A-{uuid.uuid4().hex[:6].upper()}"
+                        if not ProductBarcodes.objects.filter(barcode=generated_code).exists() and generated_code not in barcode:
                             barcode.append(generated_code)
-                            break
                         
                 else:
                     if len(barcode) != purchase_quantity:
-                        return Response(
-                            {"error": f"Number of barcodes ({len(barcode)}) must match the purchase quantity ({purchase_quantity})."},
-                                status=status.HTTP_400_BAD_REQUEST
-                                    )
+                        raise ValidationError(
+                            {"error": f"Number of barcodes ({len(barcode)}) must match the purchase quantity ({purchase_quantity})."})
+                    existing_barcodes = ProductBarcodes.objects.filter(barcode__in=barcode).values_list('barcode', flat=True)
+                    if existing_barcodes:
+                        raise ValidationError({"error": f"The following barcodes already exist: {list(existing_barcodes)}"})
                 
-                if purchase_quantity!=(good_quantity+demaged_quantity):
-                    Response({"error":"purchase qunatity not summation of good quantity and demaged quantity"})
+                if int(purchase_quantity)!=(int(good_quantity)+int(demaged_quantity)):
+                    raise ValidationError({"error": "Purchase quantity must be the sum of good and damaged quantity."})
 
                 purchase_history = PurchaseHistory.objects.create(
                     purchase=purchase,
@@ -168,6 +186,10 @@ class PurchaseListCreateAPIView(ListCreateAPIView):
                     unit_price=unit_price,
                     discount_amount=discount_amount,
                     discount_percent=discount_percent,
+                    discount_type=discount_type,
+                    vat_amounts=vat_amounts,
+                    total_amount_iv=total_amount_iv,
+                    total_amount_wv=total_amount_wv,
                     warranty=warranty,
                     remark=remark,
                     
@@ -211,7 +233,7 @@ class PurchaseListCreateAPIView(ListCreateAPIView):
                     barcode_image = generate_barcode_image(barcode_value)
                     #print(barcode_image,barcode_value)
                     ProductBarcodes.objects.create(
-                        inv=inv_pur,
+                        inv=data["invoice_no"],
                         product_variant=product_variant,
                         product_status="Purchased",
                         barcode=barcode_value,
@@ -270,21 +292,26 @@ class PurchaseRetrieveUpdateDestroyListAPIView(RetrieveUpdateDestroyAPIView):
                 unit_price = item.get('unit_price', 0)
                 discount_amount = item.get('discount_amount', 0)
                 discount_percent = item.get('discount_percent', 0)
+                discount_type = item.get("discount_type", "Select Type").strip()
                 warranty = item.get('warranty', 0)
                 remark = item.get('remark', "")
                 selling_price = item.get('selling_price', 0)
                 barcode = item.get('barcode', [])
 
                 if len(barcode) != purchase_quantity:
-                    return Response(
-                        {"error": f"Number of barcodes ({len(barcode)}) must match the good quantity ({purchase_quantity})."},
-                        status=status.HTTP_400_BAD_REQUEST
-                    )
+                    raise ValidationError(
+                        {"error": f"Number of barcodes ({len(barcode)}) must match the good quantity ({purchase_quantity})."})                       
+
+                if int(purchase_quantity)!=(int(good_quantity)+int(demaged_quantity)):
+                    raise ValidationError({"error": "Purchase quantity must be the sum of good and damaged quantity."})
+
 
                 try:
                     product_variant = ProductVariantAttribute.objects.get(id=product_variant_id)
                 except ProductVariantAttribute.DoesNotExist:
-                    return Response({"error": f"Product Variant with ID {product_variant_id} does not exist."}, status=status.HTTP_400_BAD_REQUEST)
+                    raise ValidationError({"error": f"Product Variant with ID {product_variant_id} does not exist."})
+
+                
 
                 stock, created = Stocks.objects.get_or_create(product_variant=product_variant, defaults={'total_qty': 0, 'available_qty': 0})
 
@@ -300,6 +327,7 @@ class PurchaseRetrieveUpdateDestroyListAPIView(RetrieveUpdateDestroyAPIView):
                     old_purchase_history.unit_price = unit_price
                     old_purchase_history.discount_amount = discount_amount
                     old_purchase_history.discount_percent = discount_percent
+                    old_purchase_history.discount_type=discount_type
                     old_purchase_history.warranty = warranty
                     old_purchase_history.remark = remark
                     old_purchase_history.save()
@@ -314,6 +342,7 @@ class PurchaseRetrieveUpdateDestroyListAPIView(RetrieveUpdateDestroyAPIView):
                         unit_price=unit_price,
                         discount_amount=discount_amount,
                         discount_percent=discount_percent,
+                        discount_type=discount_type,
                         warranty=warranty,
                         remark=remark,
                         created_by=request.user
@@ -476,11 +505,20 @@ class PurchaseReturnListCreateAPIView(ListCreateAPIView):
         # data['return_no'] = return_no
         with transaction.atomic():
             while True:
-                return_no = generate_return_no() 
+                return_no = generate_return_no()+'p'
                 if not PurchaseReturn.objects.filter(return_no=return_no).exists():
                     break
 
-            data["return_no"] =  return_no
+            prefixs = data.get("prefix", None)
+            if prefixs:
+                invoicesetting=InvoiceSetting.objects.filter(id=prefixs,assign_branch=data['branch'])
+                if invoicesetting.exists():
+                    invoicesetting2=InvoiceSetting.objects.filter(id=prefixs,assign_branch=data['branch']).first()
+                    data["return_no"] =str(invoicesetting2.prefix)+'-'+return_no
+                else:
+                    raise ValidationError({"error": f"This prefix doesnt exist for you."})
+            else:
+                data["return_no"] = return_no
 
             purchase_return_serializer = self.get_serializer(data=data)
             purchase_return_serializer.is_valid(raise_exception=True)
@@ -548,7 +586,7 @@ class PurchaseReturnListCreateAPIView(ListCreateAPIView):
                                 {"error": f"Barcode {barcode_value} does not belong to the specified product."},
                                 status=status.HTTP_400_BAD_REQUEST
                             )
-
+                        barcode_entry.inv_return_no=data["return_no"]
                         barcode_entry.product_status = "Purchase Return"
                         barcode_entry.purchase_return_at = now()
                         barcode_entry.save()

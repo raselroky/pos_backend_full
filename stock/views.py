@@ -103,7 +103,19 @@ class StockListAPIView(ListAPIView):
     pagination_class=MainPagination
 
     def get_queryset(self):
-        return Stocks.objects.all()
+        queryset = Stocks.objects.all()
+        barcode_search = self.request.query_params.get('barcode', None)
+ 
+        if barcode_search:
+            barcode_qs = ProductBarcodes.objects.filter(barcode__iexact=barcode_search,product_status='Purchased')
+
+            # if not barcode_qs.exists():
+            #     return Stocks.objects.none()
+            variant_ids = barcode_qs.values_list('product_variant_id', flat=True)
+            queryset = queryset.filter(product_variant_id__in=variant_ids)
+
+        return queryset
+
 
 
 class StockRetrieveUpdateDestroyListAPIView(RetrieveUpdateDestroyAPIView):

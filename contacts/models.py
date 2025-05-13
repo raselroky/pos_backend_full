@@ -53,4 +53,11 @@ class Contact(CommonAction):
         verbose_name_plural = 'Contacts'
 
     def __str__(self):
-        return f'{self.business_name} {self.email}'
+        if self.business_name and self.email:
+            return f'{self.business_name} {self.email}'
+        elif(self.business_name and not self.email):
+            return f'{self.business_name}'
+        elif(not self.business_name and self.email):
+            return f'{self.email}'
+        elif(not self.business_name and not self.email):
+            return f'{self.owner_name}'

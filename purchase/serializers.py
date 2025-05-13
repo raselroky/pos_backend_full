@@ -107,7 +107,7 @@ class PurchaseReturnHistorySerializer(serializers.ModelSerializer):
 
     def get_barcodes_return(self,obj):
         inv=obj.purchase_return.purchase.invoice_no
-        barcode=ProductBarcodes.objects.filter(inv=inv,product_status='Purchase Return')
+        barcode=ProductBarcodes.objects.filter(inv=inv,product_status='Purchase Return',inv_return_no=obj.purchase_return.return_no)
         return ProductBarcodesDetailsSerializer(barcode,many=True).data
     class Meta:
         model=PurchaseReturnHistory

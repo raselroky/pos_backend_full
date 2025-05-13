@@ -4,10 +4,7 @@ from django.utils import timezone
 
 
 class CustomUserManager(BaseUserManager):
-    """
-    Custom user model manager where email is the unique identifiers
-    for authentication instead of usernames.
-    """
+   
     use_in_migrations = True
 
     def _create_user(self, first_name, last_name, gender, email, phone, password, is_superuser, **extra_fields):

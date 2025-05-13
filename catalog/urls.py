@@ -1,5 +1,5 @@
 from django.urls import path,include
-from .views import ProductUnitListCreateAPIView,ProductUnitListAPIView,ProductUnitRetrieveUpdateDestroy,BrandListCreateAPIView,BrandListAPIView,BrandRetrieveUpdateDestroy,CategoryListCreateAPIView,CategoryListAPIView,CategoryRetrieveUpdateDestroy,SubCategoryListCreateAPIView,SubCategoryListAPIView,SubCategoryRetrieveUpdateDestroy,ColorVariationListCreateAPIView,ColorVariationListAPIView,ColorVariationRetrieveUpdateDestroy,AttributeVariationListCreateAPIView,AttributeVariationListAPIView,AttributeVariationRetrieveUpdateDestroy
+from .views import ProductUnitListCreateAPIView,ProductUnitListAPIView,ProductUnitRetrieveUpdateDestroy,BrandListCreateAPIView,BrandListAPIView,BrandRetrieveUpdateDestroy,CategoryListCreateAPIView,CategoryListAPIView,CategoryRetrieveUpdateDestroy,SubCategoryListCreateAPIView,SubCategoryListAPIView,SubCategoryRetrieveUpdateDestroy,ColorVariationListCreateAPIView,ColorVariationListAPIView,ColorVariationRetrieveUpdateDestroy,AttributeVariationListCreateAPIView,AttributeVariationListAPIView,AttributeVariationRetrieveUpdateDestroy,SingleCategoryRetrieveAPIView
 
 urlpatterns=[
     path('productunit-create/', ProductUnitListCreateAPIView.as_view(), name='productunit-create-api'),
@@ -13,6 +13,7 @@ urlpatterns=[
     path('category-create/', CategoryListCreateAPIView.as_view(), name='category-create-api'),
     path('category-list/', CategoryListAPIView.as_view(), name='category-list-api'),
     path('category-retrieve-update-destroy/<int:id>', CategoryRetrieveUpdateDestroy.as_view(), name='category-retrieve-update-destroy-api'),
+    path('single-category-retrieve/<int:id>',SingleCategoryRetrieveAPIView.as_view(), name='single-category-retrieve-api'),
 
     path('subcategory-create/', SubCategoryListCreateAPIView.as_view(), name='subcategory-create-api'),
     path('subcategory-list/', SubCategoryListAPIView.as_view(), name='subcategory-list-api'),

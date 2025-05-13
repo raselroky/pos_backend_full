@@ -21,6 +21,19 @@ class SubCategorySerializer(serializers.ModelSerializer):
         model=SubCategory
         fields='__all__'
 
+class SingleCategorySerializer(serializers.ModelSerializer):
+    subcategory=serializers.SerializerMethodField()
+
+    def get_subcategory(self,obj):
+        sub=SubCategory.objects.filter(category__id=obj.id)
+        if sub.exists():
+            sub2=SubCategorySerializer(sub,many=True).data
+            return sub2
+        return None
+    class Meta:
+        model=Category
+        fields='__all__'
+
 class SubCategoryDetailsSerializer(serializers.ModelSerializer):
     category=serializers.SerializerMethodField()
 

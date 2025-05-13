@@ -3,7 +3,7 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from .models import ProductUnit,Brand,Category,SubCategory,ColorVariation,AttributeVariation
-from .serializers import ProductUnitSerializer,BrandSerializer,CategorySerializer,SubCategorySerializer,SubCategoryDetailsSerializer,ColorVariationSerializer,AttributeVariationSerializer
+from .serializers import ProductUnitSerializer,BrandSerializer,CategorySerializer,SubCategorySerializer,SubCategoryDetailsSerializer,ColorVariationSerializer,AttributeVariationSerializer,SingleCategorySerializer
 from users.permissions import IsLogin
 from helper import MainPagination
 from django.core.mail import EmailMessage
@@ -14,7 +14,7 @@ from django.utils.timezone import make_aware
 from rest_framework.permissions import AllowAny,IsAuthenticated
 from django.contrib.auth.models import Permission
 from rest_framework.filters import SearchFilter, OrderingFilter
-from rest_framework.generics import ListAPIView,ListCreateAPIView,RetrieveUpdateDestroyAPIView
+from rest_framework.generics import ListAPIView,ListCreateAPIView,RetrieveUpdateDestroyAPIView,RetrieveAPIView
 
 
 
@@ -154,6 +154,13 @@ class CategoryRetrieveUpdateDestroy(RetrieveUpdateDestroyAPIView):
         return Response({"success": True, "message": "Deleted successfully"}, status=status.HTTP_200_OK)
 
 
+class SingleCategoryRetrieveAPIView(RetrieveAPIView):
+    permission_classes=[IsAuthenticated,]
+    queryset=Category.objects.all()
+    serializer_class=SingleCategorySerializer
+    lookup_field='id'
+
+    
 
 class SubCategoryListCreateAPIView(ListCreateAPIView):
     permission_classes=[IsAuthenticated,]

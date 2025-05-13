@@ -5,6 +5,9 @@ from rest_framework_simplejwt.serializers import TokenObtainPairSerializer, Toke
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.contrib.auth import authenticate
 from django.db.models import Q
+from rest_framework.exceptions import ValidationError
+from setting.models import BarcodeSetting
+from setting.serializers import BarcodeSettingDetailsSerializer,BarcodeSettingSerializer
 
 class RolesSerializer(serializers.ModelSerializer):
     #permissions = serializers.SerializerMethodField()
@@ -18,6 +21,18 @@ class UsersSerializer(serializers.ModelSerializer):
     email=serializers.CharField(required=False)
     role_name=serializers.SerializerMethodField()
     branch_name=serializers.SerializerMethodField()
+    assign_branch=serializers.SerializerMethodField()
+
+    def get_assign_branch(self,obj):
+        br=obj.branch
+        br2=BarcodeSetting.objects.filter(assign_branch__branch_name=obj.branch.branch_name)
+        if br2.exists():
+            br3=BarcodeSetting.objects.filter(assign_branch__branch_name=obj.branch.branch_name).first()
+            return {
+                "barcode_enable":br3.barcode_enable,
+                "assign_branch":br3.assign_branch.branch_name
+            }
+        return None
     def get_branch_name(self,obj):
         if obj.branch:
             return {
@@ -59,7 +74,6 @@ class UsersSerializer(serializers.ModelSerializer):
         roles = validated_data.pop("role", None)
         branch = validated_data.pop("branch", None)
 
-        # ✅ Only update fields that are provided
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
 
@@ -77,7 +91,7 @@ class UsersSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = Users
-        fields = ('id', 'first_name', 'last_name','email','phone', 'photo', 'gender','is_superadmin', 'is_active', 'age', 'password', 'role','role_name','branch','branch_name')
+        fields = ('id', 'first_name', 'last_name','email','phone', 'photo', 'gender','is_superadmin', 'is_active', 'age', 'password', 'role','role_name','branch','branch_name','assign_branch')
 
     
 
@@ -115,7 +129,7 @@ class MyTokenObtainPairSerializer(TokenObtainPairSerializer):
         if user and user.check_password(password):
             self.user = user
         else:
-            raise serializers.ValidationError("Invalid email and password combination.")
+            raise ValidationError({"error":"Invalid email and password combination."})
 
         refresh = self.get_token(self.user)
         data = {

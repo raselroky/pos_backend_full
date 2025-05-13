@@ -25,7 +25,7 @@ class StocksDetailsSerializer(serializers.ModelSerializer):
     def get_barcodes(self,obj):
         #print(obj.product_variant)
         barcode=ProductBarcodes.objects.filter(product_variant=obj.product_variant)
-        
+        #print(barcode)
         return ProductBarcodesDetailsSerializer(barcode,many=True).data
     def get_stock_history(self,obj):
         #print(obj.product_variant)

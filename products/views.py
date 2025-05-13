@@ -24,6 +24,8 @@ import pandas as pd
 from rest_framework.viewsets import ModelViewSet
 from django.db import transaction
 from catalog.models import ColorVariation,AttributeVariation
+import uuid
+from rest_framework.exceptions import ValidationError
 
 
 class ProductListCreateAPIView(ListCreateAPIView):
@@ -256,11 +258,16 @@ class ProductBarcodeListCreateAPIView(ListCreateAPIView):
         try:
             product_variant = ProductVariantAttribute.objects.get(id=product_id)
         except ProductVariantAttribute.DoesNotExist:
-            return Response({"error": "Invalid product variant ID"}, status=status.HTTP_400_BAD_REQUEST)
-        sku = product_variant.product.sku
-        data['barcode'] = sku
-        barcode_image = generate_barcode_image(sku)
-        data['barcode_image'] = barcode_image
+            raise ValidationError({"error": "Invalid product variant ID"})
+        
+        input_barcode = data.get('barcode')
+        if not input_barcode:
+            generated_code = f"A-{uuid.uuid4().hex[:6].upper()}"
+            if not ProductBarcodes.objects.filter(barcode=generated_code).exists():
+                input_barcode=generated_code
+                
+        data['barcode'] = input_barcode
+        data['barcode_image'] = generate_barcode_image(input_barcode)
 
         serializer = self.get_serializer(data=data)
         serializer.is_valid(raise_exception=True)

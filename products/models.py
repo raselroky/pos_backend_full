@@ -35,6 +35,7 @@ class Product(CommonAction):
     product_type        = models.CharField(max_length=20,choices=PRODUCT_TYPE,default='None')
     country             = models.CharField(max_length=100,help_text='Which countrys product')
     vat_percentage      = models.FloatField(default=0)
+    vat_amount          = models.FloatField(default=0)
     description         = models.TextField(null=True,blank=True)
 
     class Meta:
@@ -67,8 +68,9 @@ class ProductVariantAttribute(CommonAction):
 
         return f"{product_name} ({color}, {variation})"
 
-class ProductBarcodes(CommonAction):  # one barcode/product can be one stage bkz each barcode means each product/item.
-    product_status = (
+class ProductBarcodes(CommonAction):
+    PRODUCT_STATUS = (
+        ('Select Status','Select Status'),
         ('Sold', "Sold"), 
         ('Purchased', "Purchased"),
         ('Sales Return', "Sales Return"), 
@@ -76,11 +78,13 @@ class ProductBarcodes(CommonAction):  # one barcode/product can be one stage bkz
         ('Damage', "Damage"),
         ('Quotation','Quotation')
     )
+    
     inv=models.CharField(max_length=500,null=True,blank=True)
     inv_sold=models.CharField(max_length=500,null=True,blank=True)
     inv_quotation=models.CharField(max_length=500,null=True,blank=True)
+    inv_return_no=models.CharField(max_length=500,null=True,blank=True)
     product_variant     = models.ForeignKey(ProductVariantAttribute, on_delete=models.CASCADE, null=True, blank=True)
-    product_status      = models.CharField(max_length=50, choices=product_status, default=None)
+    product_status      = models.CharField(max_length=50, choices=PRODUCT_STATUS, default='Select Status')
     expired_date        = models.DateField(null=True,blank=True)
     barcode             = models.CharField(max_length=1000, unique=True)
     barcode_image       = models.ImageField(upload_to='barcodes/', null=True, blank=True, default=None) 

@@ -61,7 +61,9 @@ class ProductDetailsSerializer(serializers.ModelSerializer):
             return {
                 "id":obj.category.id,
                 "category_name":obj.category.category_name,
-                "description":obj.category.description
+                "description":obj.category.description,
+                "vat_percentage":obj.category.vat_percentage,
+                "vat_amounts":obj.category.vat_amounts
             }
         return None
     def get_sub_category(self,obj):
@@ -70,7 +72,9 @@ class ProductDetailsSerializer(serializers.ModelSerializer):
                 return {
                     "category":{
                         "id":obj.sub_category.category.id,
-                        "category_name":obj.sub_category.category.category_name
+                        "category_name":obj.sub_category.category.category_name,
+                        "vat_percentage":obj.sub_category.category.vat_percentage,
+                        "vat_amounts":obj.sub_category.category.vat_amounts
                         },
                     "id":obj.sub_category.id,
                     "sub_category_name":obj.sub_category.subcategory_name,
@@ -151,12 +155,13 @@ class ProductVariantAttributeDetailsSerializer(serializers.ModelSerializer):
         
         st=Stocks.objects.filter(product_variant__id=obj.id)
         if st.exists():
-            product=None
+            
             st_get=Stocks.objects.filter(product_variant=obj).first()
             if st_get:
                return {
                 "id":st_get.id,
-                "product_variant":product,
+                "product_variant_id":st_get.product_variant.id,
+                "product_variant_name":st_get.product_variant.product.product_name,
                 "purchase_price":st_get.purchase_price,
                 "selling_price":st_get.selling_price,
                 "total_qty":st_get.total_qty,

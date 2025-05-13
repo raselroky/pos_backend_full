@@ -97,7 +97,7 @@ class TokenRefreshAPIView(TokenRefreshView):
 
 class UsersViewSet(viewsets.ModelViewSet):
     serializer_class = UsersSerializer
-    permission_classes = [AllowAny]
+    permission_classes = [IsLogin]
     pagination_class = MainPagination
     queryset = Users.objects.all()
 

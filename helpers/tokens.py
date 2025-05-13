@@ -35,7 +35,6 @@ def create_tokens(user: Users) -> Tuple[str, str]:
     return generate_access_token(user=user), generate_refresh_token(user=user)
 
 
-
 from rest_framework_simplejwt.tokens import RefreshToken
 def generate_tokens_for_user(user,expiration):
     refresh = RefreshToken.for_user(user)

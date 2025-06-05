@@ -17,6 +17,7 @@ class Users(AbstractUser):
 
     id              = models.UUIDField(default=uuid.uuid4, editable=False, primary_key=True)
     photo           = models.ImageField(upload_to="profile_pic/", null=True, blank=True)
+    file            = models.JSONField(default=list,blank=True,null=True)
     email           = models.EmailField(unique=True, max_length=170)
     gender          = models.CharField(choices=GENDER, default='Please Select', max_length=100)
     phone           = models.CharField(max_length=15, null=True, blank=True,default="")
@@ -42,7 +43,7 @@ class Users(AbstractUser):
         verbose_name_plural = 'Users'
 
     def __str__(self):
-        return f' {self.email}'
+        return f'{self.email}'
       
 class CommonAction(models.Model):
     created_by = models.ForeignKey("users.Users", related_name="%(app_label)s_%(class)s_created_by", related_query_name="%(app_label)s_%(class)s_created_by", on_delete=models.SET_NULL, null=True, blank=True, default=None)

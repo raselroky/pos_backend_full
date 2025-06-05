@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Welcome Email</title>
+</head>
+<body style="font-family: Arial, sans-serif; line-height: 1.6;">
+    <h2>Welcome, {{ name }}!</h2>
+    <p>Your account has been successfully created with the following details:</p>
+    <table>
+        <tr><td><strong>Email:</strong></td><td>{{ email }}</td></tr>
+        <tr><td><strong>phone:</strong></td><td>{{ phone }}</td></tr>
+        <tr><td><strong>Role:</strong></td><td>{{ role }}</td></tr>
+        <tr><td><strong>Branch:</strong></td><td>{{ branch }}</td></tr>
+    </table>
+    <p>We're excited to have you on board!</p>
+    <br>
+    <p><br>{{ company }}<br>{{ address }}<br></p>
+    
+    <p>Regards,<br>Your Team</p>
+</body>
+</html>

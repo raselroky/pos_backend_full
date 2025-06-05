@@ -6,6 +6,7 @@ from users.models import Users
 from users.serializers import *
 from users.permissions import IsLogin
 from helper import MainPagination
+from helpers.caching import set_cache,get_cache,delete_cache
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 from django.contrib.auth.hashers import (
     check_password, is_password_usable, make_password,
@@ -34,6 +35,13 @@ from rest_framework.filters import SearchFilter, OrderingFilter
 from rest_framework.generics import ListAPIView,ListCreateAPIView,RetrieveUpdateDestroyAPIView
 from branch.models import Branch
 from django.http import QueryDict
+import json
+import random
+from helpers.email_settings import sending_email
+from setting.models import GeneralSetting
+from django.template.loader import render_to_string
+
+
 
 
 class LoginAPIView(TokenObtainPairView):
@@ -119,6 +127,13 @@ class UsersViewSet(viewsets.ModelViewSet):
         gender = request.data.get("gender", "Please Select")
         mutable_data["gender"] = gender
 
+        file_data = request.data.get("file")
+        if not file_data:
+            mutable_data["file"] = []
+        else:
+            mutable_data["file"] = file_data
+              
+            
         serializer = self.get_serializer(data=mutable_data)
         serializer.is_valid(raise_exception=True)
         user_instance = serializer.save()
@@ -138,6 +153,35 @@ class UsersViewSet(viewsets.ModelViewSet):
             user_instance.photo = request.FILES["photo"]
 
         user_instance.save()
+        # company_name="Your Company"
+        # if GeneralSetting.objects.exists():
+        #     company = GeneralSetting.objects.first()
+        #     company_name = company.company_name
+        #     company_address=company.company_address
+        # context = {
+        # "name":user_instance.first_name,
+        # "email": user_instance.email,
+        # "phone": user_instance.phone,
+        # "role": ', '.join([role.title for role in user_instance.role.all()]),
+        # "branch": user_instance.branch.branch_name if user_instance.branch else 'N/A',
+        # "company":company_name,
+        # "address":company_address
+        # }
+        # print("ROLE:", context["role"], type(context["role"]))
+
+        # html_body = render_to_string("welcome_user.html", context)
+        # subject = "🎉 Welcome to Our Platform!"
+
+        # try:
+        #     sending_email(
+        #     subject=subject,
+        #     to_emails=[user_instance.email],
+        #     html_template="welcome_user.html",
+        #     context=context
+        #     )
+
+        # except Exception as e:
+        #     print(f"Email sending failed: {e}")
 
         return Response(UsersSerializer(user_instance).data, status=status.HTTP_201_CREATED)
 
@@ -401,27 +445,94 @@ class PermissionsViewSet(viewsets.ModelViewSet):
         
 
 
-class ForgetPassword(APIView):
+##
+class OTPSendAPIView(APIView):
     permission_classes=(AllowAny,)
 
     
     def post(self,request):
         email=request.data['email']
+        if not email:
+            return Response({"error": "Email is required."}, status=400)
         
         usr=Users.objects.filter(email=email)
         if usr.exists():
-            phone=request.data['phone']
-            usr1=Users.objects.filter(email=email,phone=phone)
-            if usr1.exists():
-                usr2=Users.objects.filter(email=email,phone=phone).first()
-                new_password=request.data['new_password']
+            usr1=Users.objects.filter(email=email).first()
+            otp = otp = f"{random.randint(10000, 99999)}{random.randint(0, 9)}"
+            cache_key = f"otp_{email}"
+            cache=set_cache(cache_key,otp,300)
+            if not cache:
+                return Response({"error": "Failed to set OTP in cache."}, status=500)
+            print(cache,otp)
+            subject = "Your Password Reset OTP"
+            body = "Hello dear,"
+            company_name="Your Company"
+            if GeneralSetting.objects.exists():
+                company = GeneralSetting.objects.first()
+                company_name = company.company_name
+                company_address=company.company_address
 
-                usr2.password=new_password
-                usr2.save()
-                return Response({"message":"Successfully set new Passowrd."},status=status.HTTP_200_OK)
-            return Response({"message":"Phone number not correct,try again."},status=status.HTTP_404_NOT_FOUND)
-        return Response({"message":"user doesn't exist,try again."},status=status.HTTP_404_NOT_FOUND)
+            try:
+                sending_email(subject=subject, body=body, to_emails=[email],html_template="send_otp.html",context={"user":str(usr1.email),"otp": otp,"company":company_name,"address":company_address})
+            except Exception as e:
+                return Response({"error": f"Failed to send email: {str(e)}"}, status=500)
 
+        return Response({"message": "OTP sent successfully to your email."}, status=200)
+        
+
+class OTPVerifyAPIView(APIView):
+    permission_classes = (AllowAny,)
+
+    def post(self, request):
+        email = request.data.get("email")
+        otp = request.data.get("otp")
+
+        if not email or not otp:
+            return Response({"error": "Email and OTP are required."}, status=400)
+
+        cache_key = f"otp_{email}"
+        cached_otp = get_cache(cache_key)
+
+        if not cached_otp:
+            return Response({"error": "OTP expired or not found."}, status=400)
+        
+        if str(cached_otp) != str(otp):
+            return Response({"error": "Invalid OTP."}, status=400)
+
+        return Response({"message": "OTP verified successfully."}, status=200)
+    
+
+
+class ForgetPasswordSetAPIView(APIView):
+    permission_classes=(AllowAny,)
+
+    def post(self,request):
+        email=request.data.get('email')
+        if not email:
+            return Response({"error": "Email is required."}, status=400)
+        otp = request.data.get('otp')
+        cache_key = f"otp_{email}"
+        cached_otp = get_cache(cache_key)
+        if not cached_otp:
+            return Response({"error": "OTP expired or not sent."}, status=400)
+
+        if otp != cached_otp:
+            return Response({"error": "Invalid OTP."}, status=400)
+
+        usr=Users.objects.filter(email=email)
+        if usr.exists():
+            usr1=Users.objects.filter(email=email).first()
+                
+            new_password=request.data['new_password']
+            confirm_password=request.data['confirm_password']
+            if new_password!=confirm_password:
+                return Response({"message":"password did not matched,try again."},status=status.HTTP_400_BAD_REQUEST)
+
+            usr1.set_password(new_password)
+            usr1.save()
+            delete=delete_cache(cache_key)
+            return Response({"message":"Successfully Passowrd Recover."},status=status.HTTP_200_OK)
+        return Response({"message":"User not found!."},status=status.HTTP_404_NOT_FOUND)
 
 
 

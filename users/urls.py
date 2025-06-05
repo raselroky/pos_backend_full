@@ -26,6 +26,11 @@ urlpatterns = [
 
     path('api/role-update-destroy/<int:id>', RolesRetrieveUpdateDestroy.as_view(), name='role-update-destroy-detail'),
 
+    path('api/otp-send/',OTPSendAPIView.as_view(), name='otp-send-api'),
+    path('api/otp-verify/', OTPVerifyAPIView.as_view(), name='otp-verify-api'),
+    path('api/forget-password/', ForgetPasswordSetAPIView.as_view(), name='forget-apssword-api'),
+
+
     
 
 ]

@@ -107,35 +107,59 @@ class ProductDetailsSerializer(serializers.ModelSerializer):
         fields='__all__'
 
 
+
 class ProductDetailsSerializer2(serializers.ModelSerializer):
-    category=serializers.SerializerMethodField()
-    sub_category=serializers.SerializerMethodField()
-    brand=serializers.SerializerMethodField()
-    unit =serializers.SerializerMethodField()
-    
-    def get_category(self,obj):
+    category_name=serializers.SerializerMethodField()
+    subcategory_name=serializers.SerializerMethodField()
+    brand_name=serializers.SerializerMethodField()
+    unit_name =serializers.SerializerMethodField()
+    color_name=serializers.SerializerMethodField()
+    name=serializers.SerializerMethodField()
+    values=serializers.SerializerMethodField()
+
+    def get_category_name(self,obj):
         if obj.category:
             return obj.category.category_name
             
         return None
-    def get_sub_category(self,obj):
+    def get_subcategory_name(self,obj):
         if obj.sub_category:
             return obj.sub_category.subcategory_name
                 
         return None
-    def get_brand(self,obj):
+    def get_brand_name(self,obj):
         if obj.brand:
             return obj.brand.brand_name
                
         return None
-    def get_unit(self,obj):
+    def get_unit_name(self,obj):
         if obj.unit:
             return obj.unit.unit_name
                 
         return None
+    
+    def get_color_name(self, obj):
+        pv = ProductVariantAttribute.objects.filter(product=obj).first()
+        if pv and pv.color_attribute:
+            return pv.color_attribute.color_name
+        return None
+
+    def get_name(self, obj):
+        pv = ProductVariantAttribute.objects.filter(product=obj).first()
+        if pv and pv.variation_attribute:
+            return pv.variation_attribute.name
+        return None
+
+    def get_values(self, obj):
+        pv = ProductVariantAttribute.objects.filter(product=obj).first()
+        if pv and pv.variation_attribute:
+            return pv.variation_attribute.values
+        return None
+    
     class Meta:
         model=Product
-        fields='__all__'
+        fields=['id','product_name','sku','category_name','subcategory_name','brand_name','unit_name','color_name','name','values','file','weight','product_type','country','vat_percentage','vat_amount']
+
 
 class ProductVariantAttributeSerializer(serializers.ModelSerializer):
     class Meta:
@@ -149,6 +173,20 @@ class ProductVariantAttributeDetailsSerializer(serializers.ModelSerializer):
     color_attribute = ColorVariationSerializer(read_only=True)
     variation_attribute = AttributeVariationSerializer(read_only=True)
     stocks=serializers.SerializerMethodField()
+    created_by = serializers.SerializerMethodField()
+    updated_by = serializers.SerializerMethodField()
+
+    def get_created_by(self, obj):
+        # Get the user object from the related 'created_by' ForeignKey
+        if obj.created_by:
+            return obj.created_by.email
+        return None  # Return None if no user is associated
+
+    def get_updated_by(self, obj):
+        # Get the user object from the related 'updated_by' ForeignKey
+        if obj.updated_by:
+            return  obj.updated_by.email
+        return None
 
     def get_stocks(self,obj):
         from stock.models import Stocks
@@ -180,7 +218,23 @@ class ProductVariantAttributeDetailsSerializer(serializers.ModelSerializer):
 
 
 class ProductBarcodesSerializer(serializers.ModelSerializer):
+    
     barcode=serializers.CharField(required=False)
+    created_by = serializers.SerializerMethodField()
+    updated_by = serializers.SerializerMethodField()
+
+    def get_created_by(self, obj):
+        # Get the user object from the related 'created_by' ForeignKey
+        if obj.created_by:
+            return obj.created_by.email
+        return None  # Return None if no user is associated
+
+    def get_updated_by(self, obj):
+        # Get the user object from the related 'updated_by' ForeignKey
+        if obj.updated_by:
+            return  obj.updated_by.email
+        return None
+    
     class Meta:
         model=ProductBarcodes
         fields='__all__'

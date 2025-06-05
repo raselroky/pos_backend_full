@@ -23,7 +23,7 @@ from helpers.barcode import generate_barcode_image
 import pandas as pd
 from rest_framework.viewsets import ModelViewSet
 from django.db import transaction
-from catalog.models import ColorVariation,AttributeVariation
+from catalog.models import ColorVariation,AttributeVariation,Category,SubCategory,Brand,ProductUnit
 import uuid
 from rest_framework.exceptions import ValidationError
 
@@ -219,31 +219,6 @@ class ProductVariantAttributeRetrieve(RetrieveAPIView):
 
 
 
-####### Excel Export
-
-
-class ProductExportExcelAPIView(APIView):
-    permission_classes = [AllowAny]
-    def get(self, request, *args, **kwargs):
-      
-        
-        data = Product.objects.all()
-      
-        serializer = ProductDetailsSerializer2(data, many=True)
-        df = pd.DataFrame(serializer.data)
-
-        df = df.drop(columns=["created_by", "updated_by","created_at","updated_by","description"], errors="ignore")
-        
-        response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
-        response['Content-Disposition'] = 'attachment; filename=Product_data.xlsx'
-
-        with pd.ExcelWriter(response, engine='openpyxl') as writer:
-            df.to_excel(writer, sheet_name='Data', index=False)
-
-        return response
-
-
-
 class ProductBarcodeListCreateAPIView(ListCreateAPIView):
     permission_classes=(IsAuthenticated,)
     queryset=ProductBarcodes.objects.all()
@@ -323,3 +298,162 @@ class ProductBarcodeRetrieveListAPIView(RetrieveAPIView):
 
     def get_queryset(self):
         return ProductBarcodes.objects.all()
+
+
+
+
+####### ExportExcel Product
+
+
+class ProductExportExcelAPIView(APIView):
+    permission_classes = [AllowAny]
+    def get(self, request, *args, **kwargs):
+      
+        
+        data = Product.objects.all()
+      
+        serializer = ProductDetailsSerializer2(data, many=True)
+        df = pd.DataFrame(serializer.data)
+
+        df = df.drop(columns=["created_by", "updated_by","created_at","updated_at","description"], errors="ignore")
+        
+        response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+        response['Content-Disposition'] = 'attachment; filename=Product_data.xlsx'
+
+        with pd.ExcelWriter(response, engine='openpyxl') as writer:
+            df.to_excel(writer, sheet_name='Data', index=False)
+
+        return response
+
+
+
+#######  ImportExcel product
+def clean_value(value):
+    if value is None or (isinstance(value, str) and not value.strip()):
+        return None
+    return str(value).strip()
+
+
+class ProductImportExcelAPIView(APIView):
+    parser_classes = [MultiPartParser]
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, *args, **kwargs):
+        file = request.FILES.get("file")
+        if not file:
+            return Response({"error": "No file uploaded"}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            df = pd.read_excel(file, engine="openpyxl")
+            df = df.where(pd.notnull(df), None)
+
+            with transaction.atomic():
+                for _, row in df.iterrows():
+                    unit_name = row.get("unit_name")
+                    unit_short_name = row.get("unit_short_name")
+                    unit = None
+                    if unit_name:
+                        unit, _ = ProductUnit.objects.update_or_create(
+                            unit_name=unit_name,
+                            defaults={"unit_short_name": unit_short_name, "created_by": request.user}
+                        )
+
+                    brand_name =row.get("brand_name")
+                    brand_description = row.get("brand_description")
+                    brand = None
+                    if brand_name:
+                        brand, _ = Brand.objects.update_or_create(
+                            brand_name=brand_name,
+                            defaults={"description": brand_description, "created_by": request.user}
+                        )
+
+                    category_name = row.get("category_name")
+                    category = None
+                    if category_name:
+                        category, _ = Category.objects.update_or_create(
+                            category_name=category_name,
+                            defaults={"created_by": request.user}
+                        )
+
+                    subcategory_name = row.get("subcategory_name")
+                    sub_category = None
+                    if subcategory_name:
+                        sub_category, _ = SubCategory.objects.update_or_create(
+                            subcategory_name=subcategory_name,
+                            defaults={"category": category, "created_by": request.user}
+                        )
+                    
+                    # product_data = {
+                    #     "product_name": row.get("product_name"),
+                    #     "sku": row.get("sku", identifier_builder("products")),
+                    #     "unit": unit,
+                    #     "category": category,
+                    #     "sub_category": sub_category,
+                    #     "brand": brand,
+                    #     "weight": row.get("weight", 0),
+                    #     "product_type": row.get("product_type", "Single"),
+                    #     "country": row.get("country"),
+                    #     "vat_percentage": row.get("vat_percentage", 0.0),
+                    #     "description": row.get("description"),
+                    # }
+
+                    # serializer = ProductSerializer(data=product_data)
+                    # if serializer.is_valid():
+                    #     product = serializer.save(created_by=request.user)
+                    # else:
+                    #     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+                    
+                    sku_raw = row.get("sku")
+
+                    if sku_raw is None:
+                        sku = identifier_builder(table_name='products')
+
+                    if isinstance(sku_raw, (int, float)):
+                        sku = str(int(sku_raw)).zfill(10)
+                    else:
+                        sku = str(sku_raw).strip()
+                    product, created = Product.objects.update_or_create(
+                        sku=sku,
+                        defaults={
+                            "product_name": row.get("product_name"),
+                            "unit": unit,
+                            "category": category,
+                            "sub_category": sub_category,
+                            "brand": brand,
+                            "weight": row.get("weight", 0),
+                            "product_type": row.get("product_type", "None"),
+                            "country": row.get("country"),
+                            "vat_percentage": row.get("vat_percentage", 0.0),
+                            "description": row.get("description"),
+                            "created_by": request.user
+                        }
+                    )
+                    
+                    color_name = row.get("color_name",None)
+                    color_attribute = None
+                    if color_name:
+                        color_attribute, _ = ColorVariation.objects.update_or_create(
+                        color_name=color_name,
+                        defaults={"created_by": request.user}
+                        )
+
+                    variation_name =row.get("name",None)
+                    variation_values = row.get("values",None)
+                    variation_attribute = None
+                    if variation_name:
+                        variation_attribute, _ = AttributeVariation.objects.update_or_create(
+                        name=variation_name,
+                        defaults={"values": variation_values, "created_by": request.user}
+                        )
+
+                    product_variant, _ = ProductVariantAttribute.objects.update_or_create(
+                        product=product,
+                        color_attribute=color_attribute,
+                        variation_attribute=variation_attribute,
+                        defaults={"created_by": request.user}
+                    )
+
+            return Response({"message": "Product import successful"}, status=status.HTTP_201_CREATED)
+
+        except Exception as e:
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)

@@ -18,31 +18,61 @@ from .serializers import ContactSerializer,ContactDetailsSerializer
 from .models import Contact
 from rest_framework.filters import SearchFilter, OrderingFilter
 from helper import MainPagination
+from helpers.email_settings import sending_email
+from setting.models import GeneralSetting
+
 
 class ContactListCreateAPIView(ListCreateAPIView):
-    permission_classes=[IsAuthenticated,]
-    queryset=Contact.objects.all()
-    serializer_class=ContactSerializer
+    permission_classes = [IsAuthenticated]
+    queryset = Contact.objects.all()
+    serializer_class = ContactSerializer
 
     def create(self, request, *args, **kwargs):
-        # Modify request data to include created_by
-        data = request.data.copy()  # Create a mutable copy of request.data
-
+        data = request.data.copy()
         data['created_by'] = request.user.id
         data['branch'] = request.user.branch.id if request.user.branch else None
 
-        
         serializer = self.get_serializer(data=data)
         serializer.is_valid(raise_exception=True)
-        self.perform_create(serializer)
+        contact_instance = serializer.save()
+
+        # 🏢 Company info from settings
+        company_name = "Your Company"
+        if GeneralSetting.objects.exists():
+            company = GeneralSetting.objects.first()
+            company_name = company.company_name
+            address=company.company_address
+
+        # 📩 Email context
+        context = {
+            "business_name": contact_instance.business_name,
+            "owner_name": contact_instance.owner_name,
+            "email": contact_instance.email,
+            "mobile": contact_instance.mobile,
+            "business_type": contact_instance.business_type,
+            "contactor_type": contact_instance.contactor_type,
+            "company": company_name,
+            "address":address
+        }
+
+        subject = f"Welcome for New {contact_instance.contactor_type}"
+
+        try:
+            sending_email(
+                subject=subject,
+                to_emails=[request.user.email],  # you can also send to a manager or group
+                html_template="welcome_contact.html",
+                context=context
+            )
+        except Exception as e:
+            print(f"Failed to send contact email: {e}")
+
         headers = self.get_success_headers(serializer.data)
         return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
 
-    def perform_create(self, serializer):
-        serializer.save(created_by=self.request.user)
-
     def get_queryset(self):
         return Contact.objects.all()
+
 
 
 class ContactListAPIView(ListAPIView):

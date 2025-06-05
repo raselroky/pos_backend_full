@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>{{ subject }}</title>
+</head>
+<body style="font-family: Arial, sans-serif; color: #333;">
+    <p>Dear sir/madam,</p>
+
+    <p>{{ body|safe }}</p>
+
+    <br><br>
+    <p>Best regards,</p>
+    <p><strong>{{ role }}</strong></p>
+    <p>{{ company }}</p>
+    
+   {% if attachment_names %}
+        <hr>
+        <p><strong>Attached Files:</strong></p>
+        <ul>
+            {% for name in attachment_names %}
+                <li>{{ name }}</li>
+            {% endfor %}
+        </ul>
+    {% endif %}
+</body>
+</html>

@@ -49,14 +49,10 @@ class SaleListCreateAPIView(ListCreateAPIView):
                     break
             
             
-            prefixs = data.get("prefix", None)
+            prefixs = InvoiceSetting.objects.filter(assign_branch=data['branch'],is_active=True)
             if prefixs:
-                invoicesetting=InvoiceSetting.objects.filter(id=prefixs,assign_branch=data['branch'])
-                if invoicesetting.exists():
-                    invoicesetting2=InvoiceSetting.objects.filter(id=prefixs,assign_branch=data['branch']).first()
-                    data["invoice_no"] =str(invoicesetting2.prefix)+'-'+inv_sold
-                else:
-                    raise ValidationError({"error": f"This prefix doesnt exist for you."})
+                invoicesetting2=InvoiceSetting.objects.filter(assign_branch=data['branch'],is_active=True).first()
+                data["invoice_no"] =str(invoicesetting2.prefix)+'-'+inv_sold
             else:
                 data["invoice_no"] = inv_sold
 
@@ -358,14 +354,11 @@ class SaleReturnListCreateAPIView(ListCreateAPIView):
                 if not SaleReturn.objects.filter(return_no=return_no).exists():
                     break
 
-            prefixs = data.get("prefix", None)
+            prefixs = InvoiceSetting.objects.filter(assign_branch=data['branch'],is_active=True)
             if prefixs:
-                invoicesetting=InvoiceSetting.objects.filter(id=prefixs,assign_branch=data['branch'])
-                if invoicesetting.exists():
-                    invoicesetting2=InvoiceSetting.objects.filter(id=prefixs,assign_branch=data['branch']).first()
-                    data["return_no"] =str(invoicesetting2.prefix)+'-'+return_no
-                else:
-                    raise ValidationError({"error": f"This prefix doesnt exist for you."})
+                invoicesetting2=InvoiceSetting.objects.filter(assign_branch=data['branch'],is_active=True).first()
+                data["return_no"] =str(invoicesetting2.prefix)+'-'+return_no
+                
             else:
                 data["return_no"] = return_no
 
@@ -645,17 +638,15 @@ class QuotationListCreateAPIView(ListCreateAPIView):
                 if not Quotation.objects.filter(invoice_no=inv_quotation).exists():
                     break
 
-            prefixs = data.get("prefix", None)
+            prefixs = InvoiceSetting.objects.filter(assign_branch=data['branch'],is_active=True)
             if prefixs:
-                invoicesetting=InvoiceSetting.objects.filter(id=prefixs,assign_branch=data['branch'])
-                if invoicesetting.exists():
-                    invoicesetting2=InvoiceSetting.objects.filter(id=prefixs,assign_branch=data['branch']).first()
-                    data["invoice_no"] =str(invoicesetting2.prefix)+'-'+inv_quotation
-                else:
-                    raise ValidationError({"error": f"This prefix doesnt exist for you."})
+                invoicesetting2=InvoiceSetting.objects.filter(assign_branch=data['branch'],is_active=True).first()
+                data["invoice_no"] =str(invoicesetting2.prefix)+'-'+inv_quotation
+                
             else:
                 data["invoice_no"] = inv_quotation
 
+            print(data["invoice_no"])
             customer_id = data.get("customer")
             customer = None
             if customer_id:
@@ -681,6 +672,10 @@ class QuotationListCreateAPIView(ListCreateAPIView):
                 quantity = item.get("quantity", 0)
                 discount_amount = item.get("discount_amount", 0)
                 discount_percent = item.get("discount_percent", 0)
+                discount_type = item.get("discount_type", "Select Type").strip()
+                vat_amounts=item.get("vat_amounts",0)
+                total_amount_iv=item.get("total_amount_iv",0)
+                total_amount_wv=item.get("total_amount_wv",0)
                 warranty = item.get("warranty", 0)
                 remark = item.get("remark", "")
                 barcode = item.get("barcode", [])
@@ -718,10 +713,10 @@ class QuotationListCreateAPIView(ListCreateAPIView):
                 if stock.available_qty < quantity:
                     print(f"Not enough stock available for product {stock.product_variant.product.product_name}.")
                     
-                    return Response(
-                        {"error": f"Not enough stock available for product {stock.product_variant.product.product_name}."},
-                        status=status.HTTP_400_BAD_REQUEST
-                    )
+                    # return Response(
+                    #     {"error": f"Not enough stock available for product {stock.product_variant.product.product_name}."},
+                    #     status=status.HTTP_400_BAD_REQUEST
+                    # )
 
                 for barcode_value in barcode:
                     try:
@@ -757,9 +752,13 @@ class QuotationListCreateAPIView(ListCreateAPIView):
                     selling_price=stock.selling_price,
                     discount_amount=discount_amount,
                     discount_percent=discount_percent,
+                    discount_type=discount_type,
+                    vat_amounts=vat_amounts,
+                    total_amount_iv=total_amount_iv,
+                    total_amount_wv=total_amount_wv,
                     warranty=warranty,
                     remark=remark,
-                    created_by=request.user,
+                    created_by=request.user
                     #branch=request.user.branch.id if request.user.branch else None
                 )
 

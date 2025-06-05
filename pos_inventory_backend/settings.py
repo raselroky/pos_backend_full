@@ -177,7 +177,6 @@ CORS_ALLOW_HEADERS = [
     "x-requested-with",
 ]
 
-
 X_FRAME_OPTIONS = 'ALLOWALL'
 XS_SHARING_ALLOWED_METHODS = ['POST','GET','OPTIONS', 'PUT', 'DELETE']
 
@@ -253,3 +252,11 @@ CHANNEL_LAYERS = {
         },
     },
 }
+
+
+# EMAIL_BACKEND = get_email_setting('email_backend','django.core.mail.backends.smtp.EmailBackend')
+# EMAIL_HOST = get_email_setting('email_host','smtp.gmail.com')
+# EMAIL_PORT = get_email_setting('email_port',587)
+# EMAIL_USE_TLS = get_email_setting('email_use_tls',True)
+# EMAIL_HOST_USER = get_email_setting('email_host_user','your email')
+# EMAIL_HOST_PASSWORD = get_email_setting('email_host_password',"default app password")

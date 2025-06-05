@@ -255,9 +255,9 @@ class StockTransferListCreateAPIView(ListCreateAPIView):
                 raise ValidationError(f"Not enough stock available. Current available stock: {stock.available_qty}")
 
            
-            stock.available_qty -= quantity
-            stock.transfering_qty += quantity  
-            stock.save()
+            # stock.available_qty -= quantity
+            # stock.transfering_qty += quantity  
+            # stock.save()
 
             stock_transfer = StockTransfer.objects.create(
                 stock=stock,
@@ -268,13 +268,13 @@ class StockTransferListCreateAPIView(ListCreateAPIView):
                 created_by=request.user
             )
 
-            StockHistory.objects.create(
-                stock=stock,
-                quantity=-quantity,  
-                log_type="Stock Transfer Pending",
-                reference=stock_transfer.id,
-                created_by=request.user
-            )
+            # StockHistory.objects.create(
+            #     stock=stock,
+            #     quantity=-quantity,  
+            #     log_type="Stock Transfer Pending",
+            #     reference=stock_transfer.id,
+            #     created_by=request.user
+            # )
 
             serializer = self.get_serializer(stock_transfer)
             return Response(serializer.data, status=status.HTTP_201_CREATED)
@@ -307,6 +307,40 @@ class StockTransferRetrieveUpdateDestroyListAPIView(RetrieveUpdateDestroyAPIView
     
         self.perform_destroy(instance)
         return Response({"success": True, "message": "Deleted successfully"}, status=status.HTTP_200_OK)
+    
+    def update(self, request, *args, **kwargs):
+        instance = self.get_object()
+        data = request.data
+
+        if data.get("is_accept") and not instance.is_accept:
+            with transaction.atomic():
+                stock = instance.stock
+                quantity = instance.quantity
+                accept_branch = instance.accept_branch
+                given_branch = instance.given_branch
+
+                if stock.available_qty < quantity:
+                    raise ValidationError(f"Not enough stock to approve. Current: {stock.available_qty}")
+
+                stock.available_qty -= quantity
+                stock.transfering_qty += quantity  
+                stock.save()
+
+                instance.is_accept = True
+                instance.save()
+
+                StockHistory.objects.create(
+                    stock=stock,
+                    quantity=-quantity,
+                    log_type="Transferred from Branch",
+                    reference=instance.id,
+                    created_by=request.user
+                )
+
+                serializer = self.get_serializer(instance)
+                return Response(serializer.data, status=status.HTTP_200_OK)
+
+        return super().update(request, *args, **kwargs)
 
 
 
@@ -415,8 +449,8 @@ class ImportExcelStockAPIView(APIView):
                         defaults={"created_by": request.user}
                         )
 
-                    variation_name = row.get("name",None)  # Assuming 'name' is the attribute name
-                    variation_values = row.get("values",None)  # Assuming 'values' contains variation values
+                    variation_name = row.get("name",None) 
+                    variation_values = row.get("values",None)
                     variation_attribute = None
                     if variation_name:
                         variation_attribute, _ = AttributeVariation.objects.get_or_create(

@@ -18,7 +18,9 @@ PAYMENT_METHOD=(
     ('Bank-Card','Bank-Card'),
     ('Bkash','Bkash'),
     ('Nagad','Nagad'),
-    ('Upay','Upay')
+    ('Upay','Upay'),
+    ('Partial-Due','Partial-Due'),
+    ('Due','Due')
 )
 DISCOUNT_TYPE=(
     ('Select Type','Select Type'),
@@ -40,7 +42,8 @@ class Sale(CommonAction):
     paid_amount         = models.FloatField(default=0)
     due_amount          = models.FloatField(default=0)
     invoice_no          = models.CharField(max_length=20, unique=True)
-    
+    sale_date=models.DateTimeField(null=True,blank=True)
+    paid_on=models.DateTimeField(null=True,blank=True)
 
     class Meta:
         db_table = 'sale'
@@ -142,7 +145,8 @@ class Quotation(CommonAction):
     paid_amount         = models.FloatField(default=0)
     due_amount          = models.FloatField(default=0)
     invoice_no          = models.CharField(max_length=20, unique=True)
-    
+    quotation_date=models.DateTimeField(null=True,blank=True)
+    paid_on=models.DateTimeField(null=True,blank=True)
 
     class Meta:
         db_table = 'quotation'
@@ -165,7 +169,10 @@ class QuotationHistory(CommonAction):
     selling_price   =models.FloatField(default=0)
     discount_amount = models.FloatField(default=0) 
     discount_percent= models.FloatField(default=0) 
-    discount_type   = models.CharField(max_length=100,choices=DISCOUNT_TYPE,default='Select Type') 
+    discount_type   = models.CharField(max_length=100,choices=DISCOUNT_TYPE,default='Select Type')
+    total_amount_iv = models.FloatField(default=0)
+    total_amount_wv = models.FloatField(default=0)
+    vat_amounts     = models.FloatField(default=0)
     warranty        = models.PositiveIntegerField(default=0)
     remark          = models.CharField(max_length=300, null=True, blank=True)
 

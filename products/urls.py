@@ -13,6 +13,8 @@ urlpatterns=[
 
 
     path('export-product/', ProductExportExcelAPIView.as_view(), name='product-export-api'),
+    path('import-product/', ProductImportExcelAPIView.as_view(), name='product-import-api'),
+
 
 
     path('productbarcode-create/', ProductBarcodeListCreateAPIView.as_view(), name='productbarcode-create-api'),

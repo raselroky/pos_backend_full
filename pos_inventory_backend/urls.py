@@ -3,7 +3,7 @@ from django.contrib import admin
 from django.urls import path,include
 from django.conf import settings
 from django.conf.urls.static import static
-
+from .views import ImageUploadView,ImageDeleteView
 
 urlpatterns = [
     path('admin/', admin.site.urls),
@@ -18,6 +18,9 @@ urlpatterns = [
     path('notifications/',include('notifications.urls')),
     path('setting/',include('setting.urls')),
     path('reports/',include('reports.urls')),
+
+    path('upload-image/', ImageUploadView.as_view(), name='upload-image-api'),
+    path('delete-image/', ImageDeleteView.as_view(), name='delete-image-api'),
     
 ]
 

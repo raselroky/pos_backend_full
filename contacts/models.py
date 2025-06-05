@@ -35,6 +35,7 @@ class Contact(CommonAction):
 
     refer=models.ForeignKey(Users,on_delete=models.CASCADE,null=True,blank=True)
     file_image= models.ImageField(upload_to="profile_pic/", null=True, blank=True)
+    file      = models.JSONField(default=list,blank=True)
 
     tax_number=models.TextField(null=True,blank=True)
     opening_balance=models.FloatField(default=0)

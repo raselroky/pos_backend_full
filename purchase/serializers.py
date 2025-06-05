@@ -11,6 +11,20 @@ from django.db.models import Q
 
 
 class AdditionalExpenseSerializer(serializers.ModelSerializer):
+    created_by = serializers.SerializerMethodField()
+    updated_by = serializers.SerializerMethodField()
+
+    def get_created_by(self, obj):
+        # Get the user object from the related 'created_by' ForeignKey
+        if obj.created_by:
+            return obj.created_by.email
+        return None  # Return None if no user is associated
+
+    def get_updated_by(self, obj):
+        # Get the user object from the related 'updated_by' ForeignKey
+        if obj.updated_by:
+            return  obj.updated_by.email
+        return None
     class Meta:
         model=AdditionalExpense
         fields='__all__'
@@ -29,7 +43,21 @@ class PurchaseDetailsSerializer(serializers.ModelSerializer):
     return_barcodes=serializers.SerializerMethodField()
     purchase_history=serializers.SerializerMethodField()
     stock=serializers.SerializerMethodField()
+    created_by = serializers.SerializerMethodField()
+    updated_by = serializers.SerializerMethodField()
 
+    def get_created_by(self, obj):
+        # Get the user object from the related 'created_by' ForeignKey
+        if obj.created_by:
+            return obj.created_by.email
+        return None  # Return None if no user is associated
+
+    def get_updated_by(self, obj):
+        # Get the user object from the related 'updated_by' ForeignKey
+        if obj.updated_by:
+            return  obj.updated_by.email
+        return None
+    
     def get_purchase_barcodes(self,obj):
         inv=obj.invoice_no
         #print(inv)
@@ -85,6 +113,20 @@ class PurchaseHistoryDetailsSerializer(serializers.ModelSerializer):
 class PurchaseHistoryDetailsSerializer2(serializers.ModelSerializer):
     product_variant= ProductVariantAttributeDetailsSerializer(read_only=True)
     barcodes_purchase=serializers.SerializerMethodField()
+    created_by = serializers.SerializerMethodField()
+    updated_by = serializers.SerializerMethodField()
+
+    def get_created_by(self, obj):
+        # Get the user object from the related 'created_by' ForeignKey
+        if obj.created_by:
+            return obj.created_by.email
+        return None  # Return None if no user is associated
+
+    def get_updated_by(self, obj):
+        # Get the user object from the related 'updated_by' ForeignKey
+        if obj.updated_by:
+            return  obj.updated_by.email
+        return None
 
     def get_barcodes_purchase(self,obj):
         inv=obj.purchase.invoice_no
@@ -116,6 +158,20 @@ class PurchaseReturnHistorySerializer(serializers.ModelSerializer):
 class PurchaseReturnDetailsSerializer(serializers.ModelSerializer):
     purchase=PurchaseDetailsSerializer(read_only=True)
     purchase_return_history=PurchaseReturnHistorySerializer(many=True,read_only=True)
+    created_by = serializers.SerializerMethodField()
+    updated_by = serializers.SerializerMethodField()
+
+    def get_created_by(self, obj):
+        # Get the user object from the related 'created_by' ForeignKey
+        if obj.created_by:
+            return obj.created_by.email
+        return None  # Return None if no user is associated
+
+    def get_updated_by(self, obj):
+        # Get the user object from the related 'updated_by' ForeignKey
+        if obj.updated_by:
+            return  obj.updated_by.email
+        return None
     class Meta:
         model=PurchaseReturn
         fields='__all__'

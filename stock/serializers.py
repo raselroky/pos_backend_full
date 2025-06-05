@@ -7,6 +7,20 @@ from django.db.models import Q
 
 
 class StocksSerializer(serializers.ModelSerializer):
+    created_by = serializers.SerializerMethodField()
+    updated_by = serializers.SerializerMethodField()
+
+    def get_created_by(self, obj):
+        # Get the user object from the related 'created_by' ForeignKey
+        if obj.created_by:
+            return obj.created_by.email
+        return None  # Return None if no user is associated
+
+    def get_updated_by(self, obj):
+        # Get the user object from the related 'updated_by' ForeignKey
+        if obj.updated_by:
+            return  obj.updated_by.email
+        return None
     class Meta:
         model=Stocks
         fields='__all__'

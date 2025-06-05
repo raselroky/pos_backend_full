@@ -22,18 +22,22 @@ class UsersSerializer(serializers.ModelSerializer):
     role_name=serializers.SerializerMethodField()
     branch_name=serializers.SerializerMethodField()
     assign_branch=serializers.SerializerMethodField()
+   
 
     def get_assign_branch(self,obj):
-        br=obj.branch
-        br2=BarcodeSetting.objects.filter(assign_branch__branch_name=obj.branch.branch_name)
+        if not obj.branch:
+            return None
+
+        br2 = BarcodeSetting.objects.filter(assign_branch__branch_name=obj.branch.branch_name)
         if br2.exists():
-            br3=BarcodeSetting.objects.filter(assign_branch__branch_name=obj.branch.branch_name).first()
+            br3 = br2.first()
             return {
-                "barcode_enable":br3.barcode_enable,
-                "assign_branch":br3.assign_branch.branch_name
-            }
+                "barcode_enable": br3.barcode_enable,
+                "assign_branch": br3.assign_branch.branch_name
+                }
         return None
     def get_branch_name(self,obj):
+        
         if obj.branch:
             return {
                 "name":obj.branch.branch_name,
@@ -91,7 +95,7 @@ class UsersSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = Users
-        fields = ('id', 'first_name', 'last_name','email','phone', 'photo', 'gender','is_superadmin', 'is_active', 'age', 'password', 'role','role_name','branch','branch_name','assign_branch')
+        fields = ('id', 'first_name', 'last_name','email','phone', 'photo', 'file','gender','is_superadmin', 'is_active', 'age', 'password', 'role','role_name','branch','branch_name','assign_branch')
 
     
 

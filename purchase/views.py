@@ -110,14 +110,11 @@ class PurchaseListCreateAPIView(ListCreateAPIView):
                 if not Purchase.objects.filter(invoice_no=inv_pur).exists():
                     break
 
-            prefixs = data.get("prefix", None)
+            prefixs = InvoiceSetting.objects.filter(assign_branch=data['branch'],is_active=True)
             if prefixs:
-                invoicesetting=InvoiceSetting.objects.filter(id=prefixs,assign_branch=data['branch'])
-                if invoicesetting.exists():
-                    invoicesetting2=InvoiceSetting.objects.filter(id=prefixs,assign_branch=data['branch']).first()
-                    data["invoice_no"] =str(invoicesetting2.prefix)+'-'+inv_pur
-                else:
-                    raise ValidationError({"error": f"This prefix doesnt exist for you."})
+                invoicesetting2=InvoiceSetting.objects.filter(assign_branch=data['branch'],is_active=True).first()
+                data["invoice_no"] =str(invoicesetting2.prefix)+'-'+inv_pur
+
             else:
                 data["invoice_no"] = inv_pur
 
@@ -509,14 +506,11 @@ class PurchaseReturnListCreateAPIView(ListCreateAPIView):
                 if not PurchaseReturn.objects.filter(return_no=return_no).exists():
                     break
 
-            prefixs = data.get("prefix", None)
+            prefixs = InvoiceSetting.objects.filter(assign_branch=data['branch'],is_active=True)
             if prefixs:
-                invoicesetting=InvoiceSetting.objects.filter(id=prefixs,assign_branch=data['branch'])
-                if invoicesetting.exists():
-                    invoicesetting2=InvoiceSetting.objects.filter(id=prefixs,assign_branch=data['branch']).first()
-                    data["return_no"] =str(invoicesetting2.prefix)+'-'+return_no
-                else:
-                    raise ValidationError({"error": f"This prefix doesnt exist for you."})
+                invoicesetting2=InvoiceSetting.objects.filter(assign_branch=data['branch'],is_active=True).first()
+                data["return_no"] =str(invoicesetting2.prefix)+'-'+return_no
+                
             else:
                 data["return_no"] = return_no
 

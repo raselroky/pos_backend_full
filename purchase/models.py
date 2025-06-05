@@ -19,7 +19,9 @@ PAYMENT_METHOD=(
     ('Bank-Card','Bank-Card'),
     ('Bkash','Bkash'),
     ('Nagad','Nagad'),
-    ('Upay','Upay')
+    ('Upay','Upay'),
+    ('Partial-Due','Partial-Due'),
+    ('Due','Due')
 )
 DISCOUNT_TYPE=(
     ('Select Type','Select Type'),
@@ -43,6 +45,8 @@ class Purchase(CommonAction):
     invoice_no          = models.CharField(max_length=20, unique=True)
     reference           = models.CharField(max_length=100, null=True, blank=True)
     remark              = models.CharField(max_length=300, null=True, blank=True)
+    purchase_date=models.DateTimeField(null=True,blank=True)
+    paid_on=models.DateTimeField(null=True,blank=True)
 
     class Meta:
         db_table = 'purchase'

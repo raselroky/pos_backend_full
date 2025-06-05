@@ -11,4 +11,11 @@ urlpatterns=[
     path('invoicesetting-retrieve-update-destroy/<int:id>',InvoiceSettingRetrieveUpdateDestroyAPIView.as_view(), name='invoicesetting-update-destroy-api'),
     path('invoicesetting-retrieve/<int:id>', InvoiceSettingRetrieveListAPIView.as_view(), name='invoice-retrieve-api'),
     
+
+    path('generalsetting-create/',GeneralSettingListCreateAPIView.as_view(), name='generalsetting-create-api'),
+    path('generalsetting-list/', GeneralSettingListAPIView.as_view(), name='generalsetting-list-api'),
+    path('generalsetting-retrieve-update-destroy/<int:id>',GeneralSettingRetrieveUpdateDestroyAPIView.as_view(), name='generalsetting-update-destroy-api'),
+
+
+    path('send-email/',SendEmailAPIView.as_view(),name='send-email-from-admin-api'),
 ]

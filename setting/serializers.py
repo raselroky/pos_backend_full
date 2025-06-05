@@ -1,9 +1,50 @@
 from rest_framework import serializers
-from .models import BarcodeSetting,InvoiceSetting,BannerSetting,EmailSetting
+from .models import BarcodeSetting,InvoiceSetting,BannerSetting,GeneralSetting
 from contacts.serializers import ContactDetailsSerializer
 from contacts.models import Contact
 from django.db.models import Q
 
+
+class GeneralSettingSerializer(serializers.ModelSerializer):
+    class Meta:
+        model=GeneralSetting
+        fields='__all__'
+
+class GeneralSettingSerializerDetails(serializers.ModelSerializer):
+    created_by = serializers.SerializerMethodField()
+    updated_by = serializers.SerializerMethodField()
+    branch=serializers.SerializerMethodField()
+
+    def get_created_by(self, obj):
+        if obj and obj.created_by:
+            return {
+                "id": obj.created_by.id,
+                "email": obj.created_by.email,
+                "role": [role.title for role in obj.created_by.role.all()]
+            }
+        return None
+    def get_updated_by(self, obj):
+        if obj and obj.updated_by:
+            return {
+                "id": obj.updated_by.id,
+                "email": obj.updated_by.email,
+                "role": [role.title for role in obj.updated_by.role.all()]
+            }
+        return None
+    
+    def get_branch(self, obj):
+        if obj and obj.branch:
+            return {
+                "id": obj.branch.id,
+                "name": obj.branch.branch_name,
+                "country": obj.branch.country.country_name,
+                "address": obj.branch.address
+            }
+        return None
+    
+    class Meta:
+        model=GeneralSetting
+        fields='__all__'
 
 class BarcodeSettingSerializer(serializers.ModelSerializer):
     class Meta:
@@ -112,10 +153,5 @@ class InvoiceSettingDetailsSerializer(serializers.ModelSerializer):
 class BannerSettingSerializer(serializers.ModelSerializer):
     class Meta:
         model=BannerSetting
-        fields='__all__'
-
-class EmailSettingSerializer(serializers.ModelSerializer):
-    class Meta:
-        model=EmailSetting
         fields='__all__'
 

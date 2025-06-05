@@ -31,6 +31,20 @@ class SaleDetailsSerializer(serializers.ModelSerializer):
     sale_history=SaleHistorySerializer(read_only=True,many=True)
     barcodes_sold=serializers.SerializerMethodField()
     customer=ContactDetailsSerializer(read_only=True)
+    created_by = serializers.SerializerMethodField()
+    updated_by = serializers.SerializerMethodField()
+
+    def get_created_by(self, obj):
+        # Get the user object from the related 'created_by' ForeignKey
+        if obj.created_by:
+            return obj.created_by.email
+        return None  # Return None if no user is associated
+
+    def get_updated_by(self, obj):
+        # Get the user object from the related 'updated_by' ForeignKey
+        if obj.updated_by:
+            return  obj.updated_by.email
+        return None
     def get_barcodes_sold(self,obj):
         inv=obj.invoice_no
         #print(inv)
@@ -73,7 +87,21 @@ class SaleReturnHistorySerializer(serializers.ModelSerializer):
 class SaleReturnDetailsSerializer(serializers.ModelSerializer):
     sale=SaleDetailsSerializer(read_only=True)
     sale_return_history=serializers.SerializerMethodField()
+    created_by = serializers.SerializerMethodField()
+    updated_by = serializers.SerializerMethodField()
 
+    def get_created_by(self, obj):
+        # Get the user object from the related 'created_by' ForeignKey
+        if obj.created_by:
+            return obj.created_by.email
+        return None  # Return None if no user is associated
+
+    def get_updated_by(self, obj):
+        # Get the user object from the related 'updated_by' ForeignKey
+        if obj.updated_by:
+            return  obj.updated_by.email
+        return None
+    
     def get_sale_return_history(self,obj):
         #print(obj.return_no)
         sale_returns=SaleReturnHistory.objects.filter(sale_return__return_no=obj.return_no)
@@ -112,6 +140,20 @@ class QuotationDetailsSerializer(serializers.ModelSerializer):
     quotation_history=QuotationHistorySerializer(read_only=True,many=True)
     barcodes_sold=serializers.SerializerMethodField()
     customer=ContactDetailsSerializer(read_only=True)
+    created_by = serializers.SerializerMethodField()
+    updated_by = serializers.SerializerMethodField()
+
+    def get_created_by(self, obj):
+        # Get the user object from the related 'created_by' ForeignKey
+        if obj.created_by:
+            return obj.created_by.email
+        return None  # Return None if no user is associated
+
+    def get_updated_by(self, obj):
+        # Get the user object from the related 'updated_by' ForeignKey
+        if obj.updated_by:
+            return  obj.updated_by.email
+        return None
     def get_barcodes_sold(self,obj):
         inv=obj.invoice_no
         #print(inv)
